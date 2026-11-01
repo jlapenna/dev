@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# Fork the calling Claude Code, Codex or OpenCode session into a new herdr
+# pane (right) or tab. Backs each agent's fork-pane and fork-tab entry points.
+#
+# Usage: agent-fork pane|tab ["short title"] [<<<"fork task"]
+#   The optional title names the fork's task. A fork inherits its parent's
+#   session title, so the title is applied with the agent's own /rename and
+#   becomes the herdr agent name; pane and tab labels follow the session title.
+#   The optional fork task is read from stdin, so any text survives quoting.
+#   The agent kind and session id come from herdr's record of the calling pane.
+set -euo pipefail
+
+where=${1:-}
+case "$where" in pane | tab) ;; *)
+  echo "usage: agent-fork pane|tab [title]  (fork task on stdin)" >&2
+  exit 2
+  ;;
+esac
+title=$(printf '%s' "${2:-}" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//')
+test "${HERDR_ENV:-}" = 1 || { echo "ERROR: not running inside a herdr pane" >&2; exit 1; }
+
+task=""
+[ -t 0 ] || task=$(cat)
+[ -n "${task//[[:space:]]/}" ] ||
+  task="The user has not given you a task yet. Acknowledge briefly that you understand, then wait for instructions."
+
+# Resolve inherited caller context before using workspace-qualified IDs: a
+# workspace move changes the live pane ID without changing the shell environment.
+caller=$(herdr pane get "$HERDR_PANE_ID")
+kind=$(jq -r '.result.pane | .agent // .agent_session.agent // empty' <<<"$caller")
+sid=$(jq -r '.result.pane.agent_session.value // empty' <<<"$caller")
+source_pane=$(jq -er '.result.pane.pane_id' <<<"$caller")
+workspace=$(jq -er '.result.pane.workspace_id' <<<"$caller")
+{ test -n "${sid:-}" && test "$sid" != null; } ||
+  { echo "ERROR: could not resolve the session id for pane $HERDR_PANE_ID (a new session may need one exchange first)" >&2; exit 1; }
+
+# Nobody answers permission prompts in a background pane, so every fork skips
+# them; otherwise it blocks on its first tool call.
+case "$kind" in
+  claude)
+    label=Claude
+    args=(--dangerously-skip-permissions --resume "$sid" --fork-session)
+    extra=""
+    ;;
+  codex)
+    label=Codex
+    args=(fork --dangerously-bypass-approvals-and-sandbox "$sid")
+    extra=""
+    ;;
+  opencode)
+    label=OpenCode
+    args=(--session "$sid" --fork --auto)
+    extra=$'\n- Inspect the original session with: opencode export '"$sid"
+    ;;
+  *)
+    echo "ERROR: unsupported agent kind '${kind:-unknown}' in pane $HERDR_PANE_ID (claude, codex or opencode)" >&2
+    exit 1
+    ;;
+esac
+
+# Herdr agent names must match [a-z][a-z0-9_-]{0,31} and be unique among live
+# agents; a title becomes that slug, and a placeholder name is the fallback.
+name="fork-$kind-$(date +%H%M%S)"
+if [ -n "$title" ]; then
+  slug=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\{1,\}/-/g; s/^-*//; s/-*$//')
+  case "$slug" in [a-z]*) ;; ?*) slug="fork-$slug" ;; esac
+  slug=${slug:0:29}
+  slug=${slug%-}
+  taken=$(herdr agent list | jq -r '.result.agents[].name // empty' || true)
+  for candidate in "$slug" "$slug-2" "$slug-3"; do
+    if [ -n "$slug" ] && ! grep -qxF -- "$candidate" <<<"$taken"; then
+      name=$candidate
+      break
+    fi
+  done
+fi
+if [ "$where" = pane ]; then
+  pane=$(herdr pane split --pane "$source_pane" --direction right --cwd "$PWD" --no-focus | jq -r '.result.pane.pane_id')
+else
+  # No --label: herdr-automatic-rename treats a tab created with a name as
+  # renamed by hand and never names it after the fork's task.
+  pane=$(herdr tab create --workspace "$workspace" --cwd "$PWD" --no-focus |
+    jq -r '.result.root_pane.pane_id')
+fi
+{ test -n "$pane" && test "$pane" != null; } || { echo "ERROR: herdr $where creation failed" >&2; exit 1; }
+
+fail() {
+  echo "ERROR: $1 (the new $where is left open for inspection)" >&2
+  herdr pane read "$pane" --source recent --lines 40 >&2 || true
+  exit 1
+}
+
+if ! herdr agent start "$name" --kind "$kind" --pane "$pane" --timeout 90000 -- "${args[@]}" >/dev/null; then
+  # A never-trusted directory shows a trust dialog first. This is the same
+  # directory the parent session already works in.
+  if herdr pane read "$pane" --source recent --lines 30 | grep -qiE "trust this (folder|directory)"; then
+    herdr pane send-keys "$pane" down enter >/dev/null
+    herdr agent wait "$name" --until idle --timeout 60000 >/dev/null || fail "fork did not become ready"
+  else
+    fail "herdr agent start failed"
+  fi
+fi
+
+# A fork starts with its parent's title. Claude, Codex and OpenCode apply
+# /rename as a local command, without starting a model turn.
+if [ -n "$title" ]; then
+  herdr agent prompt "$name" "/rename $title" >/dev/null || fail "setting the fork's title failed"
+  retitle="- Your session title is \"$title\"."
+else
+  retitle="- Your session title is still the original's. Retitle it to your task now: herdr agent prompt \"\$HERDR_PANE_ID\" \"/rename <title>\"."
+fi
+
+notice="You are a fork of $label session $sid, created with fork-$where. Everything in your history above was copied from that original conversation, which continues separately in herdr pane $source_pane. You are now the divergent branch:
+- Treat shared history as context, not live state; the original kept acting on the world after the copy point, so re-verify files, git state, and processes before relying on them.${extra}
+- Do not edit the original session; work only in this fork.
+$retitle
+
+$task"
+herdr agent prompt "$name" "$notice" >/dev/null || fail "submitting the fork notice failed; do not resend"
+
+echo "Forked $label session $sid into a new $where (pane $pane) as herdr agent $name, in $PWD."
+echo "The fork was told it is a fork and that the original continues in pane $source_pane."
+echo "Focus stayed here; switch with herdr's focus controls."

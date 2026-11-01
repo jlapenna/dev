@@ -1,0 +1,13 @@
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  - repo: https://github.com/jlapenna/repo-tools
+    rev: 20e8bf6ebf18ed77b83abfddd95239f31652e913
+    hooks:
+      - id: repo-require-worktree
+      - id: repo-require-worktree-push
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
