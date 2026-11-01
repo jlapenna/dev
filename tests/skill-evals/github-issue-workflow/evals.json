@@ -1,0 +1,26 @@
+{
+  "skill_name": "github-issue-workflow",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Use github-issue-workflow to inspect example-org/plain#52 and give a read-only intake plan. The repository uses human assignees and linked active PRs, no managed queue, and default branch trunk. The issue is open with no assignees. CI=1, but there is no explicit dispatch.",
+      "expected_output": "Gather remaining read-only ownership and repository evidence without requiring a particular control plane or claiming anything.",
+      "files": [],
+      "assertions": ["Uses the repository's configured ownership process", "Respects default branch trunk", "Does not infer a worker dispatch from CI", "Does not mutate during read-only intake"]
+    },
+    {
+      "id": 2,
+      "prompt": "Use github-issue-workflow to inspect example-org/widget#41. Repository guidance names an installed operator skill for its managed work queue. That authority reports another active fleet run owns the issue. The issue has no GitHub assignees. Plan only.",
+      "expected_output": "Consult the configured operator guidance and respect the active owner despite an empty assignee field.",
+      "files": [],
+      "assertions": ["Consults configured ownership guidance", "Does not treat missing GitHub assignees as free", "Does not start competing implementation"]
+    },
+    {
+      "id": 3,
+      "prompt": "Use github-issue-workflow to prepare a PR for example-org/widget#53 after three hours of work. A parallel implementation has merged. Explain the required next checks and handling without pushing or creating a PR.",
+      "expected_output": "Check current issue/base/PR state, avoid a duplicate implementation, and isolate any salvageable deltas.",
+      "files": [],
+      "assertions": ["Refreshes base and PR state", "Does not mechanically resolve a duplicate implementation", "Preserves salvageable deltas as focused follow-up work", "Uses closing syntax only for fully completed acceptance"]
+    }
+  ]
+}
