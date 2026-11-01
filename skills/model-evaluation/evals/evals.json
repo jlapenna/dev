@@ -36,6 +36,26 @@
         "Does not impose k3s CI resource profiles on native inference.",
         "Uses an authorized isolated window or dedicated backend for the repeated sweep and respects active callers."
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "Our workload is interactive agent turns with repeated long cached prefixes. The replica engine is fastest on cold concurrent prompts. Its cache follow-ups took 8, 68 and 67 seconds. The SDK sends x-session-affinity but the proxy sticks on x-opencode-session; gateway forwarding is unknown. A keepalive-only variant took 69, 8 and 68 seconds. The proposed upgrade binary accepts --kv-cache fp8 in help, but its selected CUDA family exits saying BF16 caches only. All other qualification phases are complete. Pick from the qualified new candidates: cooperative configuration B has reliable 7-second cached turns and slightly better tool scores but worse coding and cold C8 than the original. Draft the conclusion and any necessary bounded verification using only this evidence; do not call live services.",
+      "expectations": [
+        "Treats the keepalive trial as a completed negative result; does not select an untested affinity fix.",
+        "Separates installed SDK header, gateway forwarding and backend affinity; does not infer session affinity from keepalive.",
+        "Distinguishes generic flag acceptance from actual backend support; does not claim the latest binary qualified.",
+        "Selects B for the stated interactive cached-turn use while preserving the original\u2019s coding/cold-load advantages and uncertainty."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "A watcher says the child worker settled with exit 1, but the authoritative run state has an active parent owning later launches. Quality has every task/seed response saved; the grader image disappeared before grading started. Original restore receipts match source/image/flags; an idle observer failed because eight ordinary production requests resumed, while active-phase telemetry passed. Save the final evaluation to the private registry and improve the public reusable skill. Specify the exact remaining actions and completion boundary using this supplied state, without operating hosts or contacting services.",
+      "expectations": [
+        "Inspects parent ownership/live handles before any relaunch and preserves completed generation; repairs/rebuilds the grader with equivalence evidence.",
+        "Treats the idle check as a precondition mismatch and uses actual active-phase evidence rather than denying production traffic.",
+        "Requires a fresh ordinary authenticated route check after helper removal, exact restoration and owned worktree cleanup before terminal completion.",
+        "Saves a bounded dated report with derived data, pins/checksums and raw-artifact links; keeps private logs/client state out of Git and environment details out of the public skill."
+      ]
     }
   ]
 }

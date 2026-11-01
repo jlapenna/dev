@@ -12,6 +12,8 @@ blocker or why a phase is outside the task.
 - Baseline serving state and recovery configuration:
 - Temporary trial authorization and permanent-deployment approval boundary:
 - Matched workloads, repeated runs/seeds, and predeclared selection criteria:
+- Stable candidate IDs, separately identified routing variants, required phase inventory:
+- Authoritative execution-state path, launch owner, live parent/child handles and queued transitions:
 - Maintenance windows, expiry, and paused timers owned by this run:
 
 ## Candidate decision
@@ -44,6 +46,9 @@ blocker or why a phase is outside the task.
 - Raw benchmark files, tool version/commit, compatibility flags, sampling:
 - Quality suite/dataset/scorer pins, denominators, repeats/seeds, raw traces:
 - Native telemetry and environment-specific monitoring evidence:
+- Actual SDK session headers, gateway forwarding, backend affinity and cache-hit evidence:
+- Intended task × seed inventory, accepted-response/sample mapping, transport recoveries:
+- Pinned grader/build inputs, image retention, canonical reference statuses and rebuild proof:
 - Memory/PSI/swap/kernel logs, measured time window, restart counts:
 - Checkpoint completeness and transport evidence:
 - Client config provenance and actual default/provider/model used:
@@ -56,5 +61,9 @@ blocker or why a phase is outside the task.
 - Recommended configuration and measured tradeoffs for the requested workload:
 - Root-cause facts versus hypotheses; unresolved issue links:
 - Maintenance/timer cleanup and final default-route response:
+- Exact original source/runtime comparison and ordinary authenticated post-cleanup request:
+- Selected configuration versus restored live state versus approved permanent deployment:
+- Durable report path, bounded supporting data, raw-artifact manifest and publication checks:
+- Terminal execution state, cleared queues, owned helpers/worktree cleanup receipts:
 - Previous step: progress / verified wait (live handle) / no progress:
 - Next concrete action and its completion evidence:

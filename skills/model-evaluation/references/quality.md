@@ -31,6 +31,20 @@ retaining the original matched comparison. Report scores with denominators,
 per-run results/spread, API failures, timeouts, truncations, and tool-turn
 exhaustion. Evaluator errors are not valid quality scores or automatic passes.
 
+Reconcile the intended task × seed inventory against accepted responses and
+saved samples before scoring. Preserve every failed transport attempt. Retry
+only failed infrastructure cases under the same prompt/seed/settings and a
+recorded, supported transport fix; retain successful responses and do not retry
+wrong answers to select a better score. Account for recovered cases once in
+the final denominator. Keep output-capped responses as model outcomes.
+
+Pin the grader separately from generation. Preserve a reproducible sandbox
+build and its supported image-retention mechanism during long runs. If an image
+is pruned before grading starts, rebuild from recorded inputs and verify grader
+source/module hashes plus canonical reference statuses against the prior build.
+Grade the saved answers without regenerating them. A known reference failure
+remains visible; a rebuilt image is not automatically equivalent.
+
 Execute generated code in the evaluator's supported isolation or a disposable
 sandbox with no credentials or external network access. Benchmark tool actions
 should use the suite's mock tools or disposable fixtures. These checks do not
@@ -46,6 +60,12 @@ output caps, and grader defects. Replay disputed traces with the pinned upstream
 scorer where possible. Publish its original score separately from any manually
 adjudicated result, with the trace and rationale. Do not patch a grader mid-run
 or count a questionable case as a confirmed regression.
+For a specification/oracle mismatch, show the minimal counterexample and both
+contracts. Any sensitivity analysis applies the same exclusion to all candidates
+and is labeled posthoc; keep the full unadjusted headline score. Read both wins
+and regressions, including action order and missing prerequisites, before writing
+a behavioral interpretation. An attempted unsafe action and a conditional
+description of a future action are different evidence.
 
 Compare paired cases as well as aggregates. A repeated failure on authorization,
 tool dependencies, or destructive-action prerequisites may matter more to the

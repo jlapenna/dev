@@ -22,6 +22,10 @@ weight quantization, KV-cache precision, topology, and material flags. Distingui
 cooperating tensor-parallel ranks from independent replicas of a complete model.
 Report total and active parameters separately from auxiliary embeddings and
 draft models. A topology change proves neither a smaller model nor equal quality.
+Give each candidate and routing variant one stable identifier. Verify material
+flag meanings and runtime tensor precision against the pinned implementation;
+a vocabulary size is not a context limit, and stored precision can differ from
+resident precision. Keep discovery claims separate from the qualified manifest.
 
 Research within the requested date window. Use relevant community reports and
 leaderboards to discover candidates, then verify consequential claims against
@@ -44,6 +48,8 @@ interrupted, and superseded runs rather than mixing their best numbers.
 - Read [quality and clients](references/quality.md) for tool use, coding,
   long-context correctness, and actual agent checks. Use established evaluators
   with their grading contract intact; a small core suite does not prove parity.
+- Read [completion and publication](references/completion.md) when resuming a
+  multi-stage run or turning results into a durable recommendation.
 - Read [temporary trials](references/operations.md) before staging or changing
   an engine. Follow the environment's own install, telemetry, and rollback
   procedures; this generic skill does not grant host-operation authority.
@@ -78,5 +84,8 @@ Recommend a configuration for the actual workload with measured tradeoffs and
 remaining uncertainty. Keeping the original is valid when the completed
 comparison supports it. If required evidence is externally blocked, name the
 exact blocker and remaining work without calling qualification complete. Link
-raw artifacts, pins, commands, and restoration evidence. Record selection,
-temporary serving, persistent deployment, and client verification separately.
+raw artifacts, pins, commands, and restoration evidence. Save the final report
+and bounded reproducibility data with the environment’s owning registry when
+requested; keep large raw/private artifacts in their protected evidence store.
+Record selection, temporary serving, persistent deployment, and client
+verification separately.
