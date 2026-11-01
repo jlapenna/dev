@@ -34,6 +34,12 @@ Identify task-owned containers, downloads, metrics bridges, listeners, timers,
 and mounts. Preserve process/session handles and loading/compilation progress.
 An observer timeout is not proof the process stopped; avoid duplicate loaders
 or launch scripts competing with an existing service manager.
+For multi-stage work, keep one authoritative run record with phase, candidate,
+launch owner, live units/handles, expected outputs and next transition. Before
+a restart or continuation, inspect those units and completed artifacts. A
+watcher notification grants no new authority and must not duplicate a parent’s
+queued launches. Preserve the original exit status and repair the component
+that failed; do not rerun completed quality because an observer or grader failed.
 
 ## Observe real service and cleanup
 
@@ -57,5 +63,13 @@ After temporary trials, restore the recorded original unless a persistent
 choice is authorized. Close task-owned pauses and silences, restore timers,
 and remove temporary listeners, helpers and mounts. Verify pins, units,
 monitoring, and a successful final request through the actual client route.
+Compare exact restored source hashes, image/model revisions and material flags
+with the pre-trial snapshot. Match observer preconditions to live service activity:
+production requests resuming after restoration are not a failed idle engine.
+After removing helpers, verify one fresh authenticated ordinary request without
+benchmark headers or response-cache reuse, plus the normal monitoring path.
+Clean the task worktree through its repository workflow; preserve needed source
+and recovery evidence outside it first. Retained offline weights are distinct
+from an installed candidate service.
 Retain restoration and failure evidence. Short qualification does not prove
 indefinite reliability or the cause of a historical failure.

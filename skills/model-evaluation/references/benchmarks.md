@@ -44,7 +44,11 @@ Choose context depth with output space reserved. Inspect request-body overrides
 for supported reasoning controls. For a fixed-output comparison, check support
 for `--exact-tg` and record it. EOS can otherwise terminate before the target:
 report actual counts. A compatibility rejection is a failed attempt, not valid
-throughput or proof of engine deadlock. Keep necessary overrides specific to
+throughput or proof of engine deadlock. Verify a newly released binary with
+the exact backend, family, cache precision and stream budget: a generic parser
+accepting a flag does not prove that the selected CUDA family supports it.
+Keep published upstream speedups separate from this local compatibility test
+and from matched local timing. Keep necessary overrides specific to
 the tested engine/version rather than accumulating permanent workarounds.
 
 Measure workload-relevant concurrency separately, for example `--pp 4096
@@ -57,6 +61,24 @@ For prefix reuse, measure initial context load separately from cached follow-up,
 using `--enable-prefix-caching` and omitting `--no-cache` where supported. Verify
 actual cache hits in metrics/logs. Do not present cached follow-up TTFT as the
 initial prompt's prefill time.
+
+Test reuse through the route the client actually uses, as well as directly when
+needed to localize a miss. Use fresh prefixes per repetition, bypass gateway
+response caching, and retain per-run load/follow-up durations. An average can
+hide one hit and two recomputations. Inspect the installed SDK’s emitted
+session header, gateway forwarding policy and backend affinity receipt; a
+configured stick table is not proof that it receives a usable key. HTTP
+keepalive preserves connections, not necessarily conversation affinity. Change
+one material routing variable in a separately identified follow-up, retain the
+primary results, and finish or explicitly discard that follow-up before
+selection. Do not recommend an untested header or routing repair as qualified.
+
+Check admission separately from decoder capacity. A controlled over-capacity
+probe can verify successful queuing beyond the proxy queue deadline; record
+active decoders, pending requests, observed wait and HTTP failures. Ten successful
+requests with eight active and two waiting prove queue handling, not ten
+concurrent decoders. A zero exported queue-duration field does not erase an
+observed wait. Use only authorized load and the environment’s existing limits.
 
 Report TTFT, prefill, per-request and aggregate decode, complete response latency
 where recorded, mean/spread, actual tokens, errors, and fit/stability evidence.
