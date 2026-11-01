@@ -17,7 +17,8 @@
         "./skills/takeover",
         "./skills/external-pr-checkin",
         "./skills/revive-tmux-session",
-        "./skills/herdr-overview"
+        "./skills/herdr-overview",
+        "./skills/github-issue-workflow"
       ]
     }
   ]

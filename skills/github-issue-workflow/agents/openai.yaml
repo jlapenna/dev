@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Issue Workflow"
+  short_description: "Deliver GitHub issues safely through PRs"
+  default_prompt: "Use $github-issue-workflow to carry this GitHub issue through an isolated worktree and pull request."

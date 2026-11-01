@@ -9,6 +9,7 @@ Reusable development skills and tools for coding agents.
 | [fork-tab](skills/fork-tab/SKILL.md) | Fork the current coding-agent conversation into a new Herdr tab. |
 | [handoff](skills/handoff/SKILL.md) | Write a concise handoff for a successor. |
 | [takeover](skills/takeover/SKILL.md) | Reconstruct intent, verify live state, and continue another session. |
+| [github-issue-workflow](skills/github-issue-workflow/SKILL.md) | Carry issue work through ownership checks, isolated implementation, and delivery. |
 | [external-pr-checkin](skills/external-pr-checkin/SKILL.md) | Inspect upstream PR gates and complete authorized author follow-ups. |
 | [revive-tmux-session](skills/revive-tmux-session/SKILL.md) | Recover Linux tmux sessions from live processes or saved transcripts. |
 | [herdr-overview](skills/herdr-overview/SKILL.md) | Show a scoped grid of coding agents. |
