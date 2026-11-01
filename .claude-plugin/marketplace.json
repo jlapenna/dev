@@ -7,12 +7,17 @@
     {
       "name": "dev",
       "source": "./",
-      "description": "Model evaluation and session-forking skills.",
+      "description": "Model evaluation, session continuity, upstream PR maintenance, recovery, and Herdr workflows.",
       "strict": false,
       "skills": [
         "./skills/model-evaluation",
         "./skills/fork-pane",
-        "./skills/fork-tab"
+        "./skills/fork-tab",
+        "./skills/handoff",
+        "./skills/takeover",
+        "./skills/external-pr-checkin",
+        "./skills/revive-tmux-session",
+        "./skills/herdr-overview"
       ]
     }
   ]

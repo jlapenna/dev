@@ -1,0 +1,24 @@
+id = "herdr-overview"
+name = "Overview"
+version = "0.2.0"
+min_herdr_version = "0.9.0"
+description = "One-tab grid of every coding agent: local session plus saved machines. Read-only overview or live attach."
+platforms = ["linux"]
+
+[[actions]]
+id = "overview"
+title = "Agent overview (this workspace)"
+contexts = ["workspace"]
+command = ["bash", "bin/herdr-overview", "--action"]
+
+[[actions]]
+id = "overview-all"
+title = "Agent overview (all workspaces)"
+contexts = ["workspace"]
+command = ["bash", "bin/herdr-overview"]
+
+[[actions]]
+id = "live"
+title = "Agent live view (this workspace)"
+contexts = ["workspace"]
+command = ["bash", "bin/herdr-overview", "--action", "--live"]

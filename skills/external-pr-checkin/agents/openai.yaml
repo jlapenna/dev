@@ -1,0 +1,4 @@
+interface:
+  display_name: "External PR Check-in"
+  short_description: "Check open upstream PRs and identify concrete unblock actions"
+  default_prompt: "Use $external-pr-checkin to check my open external GitHub PRs, summarize their current state, and recommend specific unblock actions with owners. Drop each PR from scope as soon as it merges or closes."

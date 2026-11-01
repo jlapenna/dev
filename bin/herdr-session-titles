@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""Keep Herdr pane titles in sync without reading conversation transcripts."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+
+SOURCE = "homegit:session-title"
+
+
+def records(path):
+    try:
+        with path.open(encoding="utf-8", errors="replace") as stream:
+            for line in stream:
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(record, dict):
+                    yield record
+    except OSError:
+        return
+
+
+def clean(value):
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.split())[:240]
+
+
+def saved_titles(agents, home):
+    wanted = {a.get("agent_session", {}).get("value") for a in agents
+              if isinstance(a.get("agent_session"), dict)}
+    titles = {}
+    codex_home = Path(os.environ.get("CODEX_HOME", home / ".codex"))
+    for record in records(codex_home / "session_index.jsonl"):
+        if record.get("id") in wanted and clean(record.get("thread_name")):
+            titles[("codex", record["id"])] = clean(record["thread_name"])
+    for agent in agents:
+        session = agent.get("agent_session") or {}
+        sid = session.get("value", "")
+        kind = agent.get("agent")
+        if (kind not in {"claude", "codex"} or session.get("agent") != kind
+                or session.get("kind") != "id"):
+            continue
+        # Native /rename updates this metadata and the saved session together.
+        # Claude has no separate title index: never scan its conversation files.
+        # A native title also covers a Codex session missing from its index.
+        native = clean(agent.get("terminal_title_stripped"))
+        if native and native.lower() not in {
+                "claude", "claude code", "codex", "codex cli", "untitled"}:
+            titles.setdefault((kind, sid), native)
+    return titles
+
+
+def call(*args):
+    env = dict(os.environ)
+    for key in ("HERDR_SOCKET_PATH", "HERDR_CLIENT_SOCKET_PATH"):
+        env.pop(key, None)
+    result = subprocess.run(["herdr", "--session", "default", *args],
+                            env=env, capture_output=True, text=True, timeout=5,
+                            check=True)
+    return json.loads(result.stdout) if result.stdout.strip() else {}
+
+
+def sync():
+    agents = call("agent", "list")["result"]["agents"]
+    titles = saved_titles(agents, Path.home())
+    for agent in agents:
+        session = agent.get("agent_session") or {}
+        kind = agent.get("agent")
+        if session.get("kind") != "id" or session.get("agent") != kind:
+            continue
+        title = titles.get((kind, session.get("value")))
+        if not title:
+            continue
+        # A pane can change occupants while metadata is being collected.
+        current = call("pane", "get", agent["pane_id"])["result"]["pane"]
+        if current.get("agent_session") != session:
+            continue
+        # The sidebar's `pane` token uses the native label, not reported title
+        # metadata. Leave tab naming to herdr-automatic-rename: renaming a tab
+        # here would opt it out of that plugin on every timer tick.
+        if current.get("label") != title:
+            call("pane", "rename", agent["pane_id"], title)
+        call("pane", "report-metadata", agent["pane_id"], "--source", SOURCE,
+             "--agent", kind, "--title", title, "--ttl-ms", "45000")
+
+
+if __name__ == "__main__":
+    argparse.ArgumentParser(description=__doc__).parse_args()
+    try:
+        sync()
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        print(f"herdr-session-titles: {error}", file=sys.stderr)
+        sys.exit(1)
