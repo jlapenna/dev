@@ -25,9 +25,9 @@ jobs:
           PNPM_HOME: ${{ runner.temp }}/pnpm
         run: |
           npm install --global pnpm@11.24.0
-          mkdir -p "$PNPM_HOME"
-          printf '%s\n' "$PNPM_HOME" >> "$GITHUB_PATH"
-          export PATH="$PNPM_HOME:$PATH"
+          mkdir -p "$PNPM_HOME/bin"
+          printf '%s\n' "$PNPM_HOME/bin" "$PNPM_HOME" >> "$GITHUB_PATH"
+          export PATH="$PNPM_HOME/bin:$PNPM_HOME:$PATH"
           pnpm add --global --ignore-scripts github:jlapenna/repo-tools
       - name: Check portable interfaces and fork behavior
         run: make check
