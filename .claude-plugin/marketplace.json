@@ -1,0 +1,19 @@
+{
+  "name": "jlapenna-dev",
+  "owner": {
+    "name": "Joe LaPenna"
+  },
+  "plugins": [
+    {
+      "name": "dev",
+      "source": "./",
+      "description": "Model evaluation and session-forking skills.",
+      "strict": false,
+      "skills": [
+        "./skills/model-evaluation",
+        "./skills/fork-pane",
+        "./skills/fork-tab"
+      ]
+    }
+  ]
+}

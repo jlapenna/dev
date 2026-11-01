@@ -1,0 +1,41 @@
+{
+  "skill_name": "model-evaluation",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Evaluate the current Spark configuration against three promising improvements. Work autonomously and use recent posts from the past 30 days plus Spark Arena. Temporary trials are authorized; do not permanently deploy a new model without my confirmation. Existing evidence is in the supplied run directory.",
+      "expectations": [
+        "Uses the evaluation entrypoint and its relevant references for both performance and quality.",
+        "Runs or identifies concrete matched follow-up measurements rather than treating missing qualification as a completed recommendation.",
+        "Keeps exact model, engine, precision, and topology identities distinct.",
+        "Completes temporary-trial restoration and preserves the permanent-deployment confirmation boundary."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Which should we use? Baseline TP2 has 70 aggregate tok/s at C8 and 90 percent on 104 tool cases. Qwen TensorFold two replicas has 91 aggregate tok/s at C8 and 87 percent on the same single trial, with 100 percent on a 15-case smoke test. GLM TensorFold TP2 has 37 aggregate tok/s at C8 and 89 percent on 104 tool cases. The independent Qwen replicas have more free memory. We use eight streams with 139K contexts and want equally capable coding agents.",
+      "expectations": [
+        "Does not infer quality parity from the short smoke test or rank usefulness by free memory.",
+        "Distinguishes aggregate throughput from individual stream or whole-task latency.",
+        "Requires evidence for the combined long-context concurrency shape rather than assuming eight slots fit eight full contexts.",
+        "Identifies the evidence needed for a coding-quality decision and distinguishes the two TensorFold candidates."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Send one image with a tool-use question to the configured local default; do not benchmark or change anything.",
+      "expectations": [
+        "Routes ordinary inference to the environment\u2019s request guide without launching a model-selection or qualification workflow."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "The model eval ran natively on the Sparks. It hit its planned timeout during a context sweep while a normal client started using the endpoint. Can you finish the evaluation?",
+      "expectations": [
+        "Preserves the interrupted result and verifies live handles before restarting work.",
+        "Does not impose k3s CI resource profiles on native inference.",
+        "Uses an authorized isolated window or dedicated backend for the repeated sweep and respects active callers."
+      ]
+    }
+  ]
+}
