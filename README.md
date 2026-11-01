@@ -38,6 +38,12 @@ with the corresponding agent's unattended permission flags; use it only in
 an environment where that execution mode is authorized. A failed startup leaves
 the new pane open for inspection and returns the actual failure.
 
+A finished session ends itself with `agent-fork exit`. It returns at once and
+leaves a detached waiter. When the session's current turn ends, the waiter
+sends `/exit` and closes the pane. It stands down if the session is busy again
+by then. Every fork's starting instructions tell it to run this once its task
+is complete and verified, so finished forks do not pile up as idle tabs.
+
 ## Herdr integrations
 
 [Overview](herdr/overview/README.md) is the native Herdr plugin, installed with

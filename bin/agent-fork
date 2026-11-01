@@ -3,19 +3,41 @@
 # pane (right) or tab. Backs each agent's fork-pane and fork-tab entry points.
 #
 # Usage: agent-fork pane|tab ["short title"] [<<<"fork task"]
+#        agent-fork exit
 #   The optional title names the fork's task. A fork inherits its parent's
 #   session title, so the title is applied with the agent's own /rename and
 #   becomes the herdr agent name; pane and tab labels follow the session title.
 #   The optional fork task is read from stdin, so any text survives quoting.
 #   The agent kind and session id come from herdr's record of the calling pane.
+#   exit ends the calling session once its current turn finishes: the agent
+#   gets /exit and its pane closes. Run it as a finished session's last step.
 set -euo pipefail
 
 where=${1:-}
-case "$where" in pane | tab) ;; *)
-  echo "usage: agent-fork pane|tab [title]  (fork task on stdin)" >&2
+case "$where" in pane | tab | exit) ;; *)
+  echo "usage: agent-fork pane|tab [title]  (fork task on stdin) | agent-fork exit" >&2
   exit 2
   ;;
 esac
+
+if [ "$where" = exit ]; then
+  test "${HERDR_ENV:-}" = 1 || { echo "ERROR: not running inside a herdr pane" >&2; exit 1; }
+  self=$(herdr pane get "$HERDR_PANE_ID" | jq -er '.result.pane.pane_id')
+  # Detached so it outlives this tool call. It waits for the turn (and its
+  # final report) to finish, and stands down if the session is busy again.
+  # shellcheck disable=SC2016
+  setsid -f bash -c '
+    pane=$1 delay=$2
+    herdr agent wait "$pane" --until idle --until done --timeout 1800000 >/dev/null || exit
+    sleep "$delay"
+    case $(herdr pane get "$pane" | jq -r ".result.pane.agent_status") in idle | done) ;; *) exit ;; esac
+    herdr agent prompt "$pane" /exit >/dev/null
+    sleep "$delay"
+    herdr pane close "$pane" >/dev/null
+  ' agent-exit "$self" "${AGENT_EXIT_DELAY:-3}" </dev/null >/dev/null 2>&1
+  echo "This session exits and pane $self closes once the current turn ends."
+  exit 0
+fi
 title=$(printf '%s' "${2:-}" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//')
 test "${HERDR_ENV:-}" = 1 || { echo "ERROR: not running inside a herdr pane" >&2; exit 1; }
 
@@ -114,6 +136,7 @@ notice="You are a fork of $label session $sid, created with fork-$where. Everyth
 - Treat shared history as context, not live state; the original kept acting on the world after the copy point, so re-verify files, git state, and processes before relying on them.${extra}
 - Do not edit the original session; work only in this fork.
 $retitle
+- When your task is fully complete and verified, with nothing you started still running or awaiting a result, run \`agent-fork exit\` as your last command, then give your final report. The session exits and this $where closes after that turn.
 
 $task"
 herdr agent prompt "$name" "$notice" >/dev/null || fail "submitting the fork notice failed; do not resend"
