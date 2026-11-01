@@ -1,0 +1,5 @@
+interface:
+  display_name: "Takeover"
+  short_description: "Pick up another session's work from its transcript and live state"
+policy:
+  allow_implicit_invocation: true

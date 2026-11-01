@@ -1,0 +1,356 @@
+#!/usr/bin/env bash
+# herdr-overview: a tab with one cell per agent, across the local session and
+# every enabled saved machine. The grid follows agents as they come and go.
+#
+# Usage (from any herdr pane):
+#   herdr-overview              # overview: read-only text copies, refreshed every 2s;
+#                               #   click (or Enter) a cell to jump to that agent
+#   herdr-overview --live       # live view: each cell is attached to its agent and
+#                               #   takes input; agents shrink to cell size meanwhile
+#   herdr-overview --no-focus   # either mode, without switching to the new tab
+#   herdr-overview --machine buildbox --workspace p   # restrict the grid to a
+#                               #   subset. --machine/--workspace are repeatable,
+#                               #   accept comma lists, and combine as AND.
+#                               #   "local" matches the local session; a workspace
+#                               #   specifier matches its id or label on each machine.
+#
+# As a Herdr plugin (herdr plugin install jlapenna/dev/herdr/overview), the manifest's
+# actions pass --action, which scopes the grid to the invoking workspace.
+#
+# Close the tab to stop. A background controller notices, and in live mode
+# resets every agent's terminal to its own pane's size before exiting.
+# To leave an attached cell, press ctrl+b q: attach's fixed detach key. If the
+# outer herdr's prefix is also ctrl+b, it takes ctrl+b twice to pass one through.
+#
+# Local agents come from HERDR_MAIN_SOCKET (default: HERDR_SOCKET_PATH when set,
+# else the default session). HERDR_BIN_PATH is used for herdr calls when set.
+# Unreachable machines keep their last known agents, shown as "unreachable".
+set -euo pipefail
+
+main_sock=${HERDR_MAIN_SOCKET:-${HERDR_SOCKET_PATH:-$HOME/.config/herdr/herdr.sock}}
+herdr_bin=${HERDR_BIN_PATH:-herdr}
+interval=${HERDR_OVERVIEW_INTERVAL:-2}
+scan=${HERDR_OVERVIEW_SCAN:-5}
+local_label=$(hostname -s)
+self=$(readlink -f "$0")
+detach_hint="ctrl+b q to detach"
+if grep -qE '^[[:space:]]*prefix[[:space:]]*=[[:space:]]*"ctrl\+b"' "$HOME/.config/herdr/config.toml" 2>/dev/null ||
+  ! grep -qE '^[[:space:]]*prefix[[:space:]]*=' "$HOME/.config/herdr/config.toml" 2>/dev/null; then
+  detach_hint="ctrl+b ctrl+b q to detach"
+fi
+
+# on <machine> <herdr args...>: run against the local main session or a saved machine.
+on() {
+  local m=$1
+  shift
+  if [[ $m == "$local_label" ]]; then
+    HERDR_SOCKET_PATH=$main_sock "$herdr_bin" "$@"
+  else
+    timeout 8 "$herdr_bin" --machine "$m" "$@"
+  fi
+}
+
+ssh_target() {
+  "$herdr_bin" machine list --json | jq -r --arg m "$1" '.[] | select(.label == $m) | .target'
+}
+
+# attach <machine> <target>: interactive viewer; remote machines go through SSH
+# because herdr can't attach across --machine.
+attach() {
+  if [[ $1 == "$local_label" ]]; then
+    HERDR_SOCKET_PATH=$main_sock "$herdr_bin" agent attach "$2"
+  else
+    ssh -t "$(ssh_target "$1")" "bash -lc $(printf '%q' "herdr agent attach $2")"
+  fi
+}
+
+# restore <machine> <target>: an attached viewer resizes the agent's terminal and
+# the size sticks after detaching, so set it back to its own pane's size.
+restore() {
+  local m=$1 target=$2 info tid pane rect cmd
+  info=$(on "$m" agent get "$target" 2>/dev/null) || return 0
+  tid=$(jq -r '.result.agent.terminal_id' <<<"$info")
+  pane=$(jq -r '.result.agent.pane_id' <<<"$info")
+  rect=$(on "$m" pane layout --pane "$pane" 2>/dev/null |
+    jq -r --arg p "$pane" '.result.layout.panes[] | select(.pane_id == $p) | .rect | "\(.width) \(.height)"') || return 0
+  read -r cols rows <<<"$rect"
+  cmd="timeout 3 herdr terminal session control $tid --cols $cols --rows $rows </dev/null"
+  if [[ $m == "$local_label" ]]; then
+    HERDR_SOCKET_PATH=$main_sock bash -c "$cmd" >/dev/null 2>&1 || true
+  else
+    ssh -n "$(ssh_target "$m")" "bash -lc $(printf '%q' "$cmd")" >/dev/null 2>&1 || true
+  fi
+}
+
+header() { printf '\e[1;7m %s · %s · %s \e[0m' "$@"; }
+
+# --- live view cell: stay attached; reattach on Enter after a detach ---------
+if [[ ${1:-} == --view ]]; then
+  machine=${2:?} target=${3:?} label=${4:-$3}
+  while :; do
+    printf '\e[H\e[J%s\nattaching…\n' "$(header "$machine" "$label" "$detach_hint")"
+    attach "$machine" "$target" || sleep 2
+    restore "$machine" "$target"
+    printf '\e[H\e[J%s\ndetached · Enter to reattach\n' "$(header "$machine" "$label" "detached")"
+    read -r _ || exit 0
+  done
+fi
+
+# --- overview cell: text copy; click or Enter jumps to the agent --------------
+if [[ ${1:-} == --cell ]]; then
+  machine=${2:?} target=${3:?} label=${4:-$3}
+  # Mouse reporting (SGR) lets a left click, or Enter, jump to the agent's pane.
+  # Remote agents are attached in place over SSH instead.
+  trap 'tput cnorm; tput smam; printf "\\e[?1000l\\e[?1006l"' EXIT
+  tput civis
+  tput rmam
+  printf '\e[?1000h\e[?1006h'
+  body=""
+  while :; do
+    rows=$(tput lines) cols=$(tput cols)
+    if info=$(on "$machine" agent get "$target" 2>/dev/null); then
+      state=$(jq -r '.result.agent.agent_status // "unknown"' <<<"$info")
+      body=$(on "$machine" agent read "$target" --source visible --lines 200 2>/dev/null || true)
+    elif [[ $machine == "$local_label" ]] || on "$machine" agent list >/dev/null 2>&1; then
+      state=gone
+    else
+      state=unreachable
+    fi
+    frame=$(
+      header "$machine" "$label" "$state"
+      printf '\n'
+      printf '%s\n' "$body" | expand | sed -E -e 's/[[:space:]]+$//' -e '/^$/d' |
+        tail -n $((rows - 1)) | sed -E "s/^(.{$cols}).*/\\1/"
+    )
+    # Overwrite in place (no full clear) so the view doesn't flicker.
+    printf '\e[H%s\e[J' "$(sed 's/$/\x1b[K/' <<<"$frame")"
+    if read -rsn1 -t "$interval" key; then
+      jump=false
+      if [[ $key == $'\e' ]]; then
+        seq=""
+        while read -rsn1 -t 0.05 c; do
+          seq+=$c
+          [[ $c == [Mm] ]] && break
+        done
+        [[ $seq =~ ^\[\<0\;[0-9]+\;[0-9]+M$ ]] && jump=true
+      elif [[ -z $key ]]; then
+        jump=true
+      fi
+      if $jump && [[ $machine == "$local_label" ]]; then
+        on "$machine" agent focus "$target" >/dev/null 2>&1 || true
+      elif $jump; then
+        # Herdr can't switch this client to another machine, so attach in place.
+        printf '\e[?1000l\e[?1006l\e[H\e[J'
+        tput cnorm
+        tput smam
+        "$herdr_bin" pane zoom "$HERDR_PANE_ID" --on >/dev/null 2>&1 || true
+        echo "attaching to $machine $label · $detach_hint"
+        attach "$machine" "$target" || sleep 2
+        restore "$machine" "$target"
+        "$herdr_bin" pane zoom "$HERDR_PANE_ID" --off >/dev/null 2>&1 || true
+        tput civis
+        tput rmam
+        printf '\e[?1000h\e[?1006h\e[H\e[J'
+      fi
+    fi
+  done
+fi
+
+# --- controller: runs detached, keeps the tab's grid in sync ------------------
+if [[ ${1:-} == --controller ]]; then
+  mode=${2:?} tab=${3:?} root=${4:?}
+  shift 4
+  only_machines=() only_workspaces=()
+  while (($#)); do
+    case $1 in
+      --machine) only_machines+=("${2:?--machine needs a value}"); shift 2 ;;
+      --workspace) only_workspaces+=("${2:?--workspace needs a value}"); shift 2 ;;
+      *) echo "controller: unknown argument: $1" >&2; exit 2 ;;
+    esac
+  done
+  workspace=${tab%%:*}
+  cache=$(mktemp -d)
+  rows=()
+
+  restore_rows() {
+    local row m target _
+    for row in "$@"; do
+      IFS=$'\t' read -r m target _ <<<"$row"
+      restore "$m" "$target" &
+    done
+    wait || true
+  }
+
+  cleanup() {
+    if [[ $mode == live ]]; then
+      echo "$(date +%T) restoring agent sizes"
+      restore_rows "${rows[@]}"
+    fi
+    rm -rf "$cache"
+  }
+  trap cleanup EXIT
+  trap 'exit 0' INT TERM HUP
+
+  # Prints "machine<TAB>pane_id<TAB>label" per agent, local first. A machine that
+  # fails to answer keeps its previous answer so the grid doesn't churn.
+  # --machine/--workspace filters (lowercased, exact) restrict the agent set.
+  scan_agents() {
+    local m f wid ml fl wsjson
+    local -a machines=("$local_label") kept ids
+    mapfile -t -O 1 machines < <("$herdr_bin" machine list --json | jq -r '.[] | select(.enabled) | .label')
+    if ((${#only_machines[@]})); then
+      kept=()
+      for m in "${machines[@]}"; do
+        ml=${m,,}
+        for f in "${only_machines[@]}"; do
+          fl=${f,,}
+          if [[ $ml == "$fl" || ($fl == local && $m == "$local_label") ]]; then kept+=("$m"); break; fi
+        done
+      done
+      machines=(${kept[@]+"${kept[@]}"})
+    fi
+    for m in "${machines[@]}"; do
+      (on "$m" agent list >"$cache/$m.new" 2>/dev/null && mv "$cache/$m.new" "$cache/$m") &
+      if ((${#only_workspaces[@]})); then
+        (on "$m" workspace list >"$cache/$m.ws.new" 2>/dev/null && mv "$cache/$m.ws.new" "$cache/$m.ws") &
+      fi
+    done
+    wait || true
+    for m in "${machines[@]}"; do
+      [[ -s $cache/$m ]] || continue
+      wsjson=null
+      if ((${#only_workspaces[@]})); then
+        ids=()
+        while IFS=$'\t' read -r wid ml; do
+          for f in "${only_workspaces[@]}"; do
+            fl=${f,,}
+            if [[ ${wid,,} == "$fl" || ${ml,,} == "$fl" ]]; then ids+=("$wid"); break; fi
+          done
+        done < <(jq -r '.result.workspaces[] | [.workspace_id, (.label // "")] | @tsv' "$cache/$m.ws" 2>/dev/null)
+        wsjson=$(printf '%s\n' ${ids[@]+"${ids[@]}"} | jq -R 'select(. != "")' | jq -s .)
+      fi
+      jq -r --arg m "$m" --argjson ws "$wsjson" '.result.agents
+        | map(select($ws == null or ((.workspace_id // "") as $w | $ws | index($w)) != null))
+        | sort_by(.pane_id)[]
+        | [$m, .pane_id, (.name // "\(.agent) \(.cwd // "" | split("/") | last)")] | @tsv' "$cache/$m"
+    done
+  }
+
+  split() { # split <pane> <direction> <ratio kept by <pane>>
+    "$herdr_bin" pane split "$1" --direction "$2" --ratio "$3" --no-focus | jq -r '.result.pane.pane_id'
+  }
+  share() { awk -v k="$1" 'BEGIN { printf "%.4f", 1 / k }'; }
+
+  # Root stays as the status bar; everything below it is rebuilt.
+  rebuild() {
+    local n=${#rows[@]} ncols=1 nrows c r i pane height m target label
+    local -a col_panes cells
+    for pane in $("$herdr_bin" pane list --workspace "$workspace" |
+      jq -r --arg t "$tab" '.result.panes[] | select(.tab_id == $t) | .pane_id'); do
+      [[ $pane == "$root" ]] || "$herdr_bin" pane close "$pane" >/dev/null
+    done
+    ((n > 0)) || return 0
+
+    while ((ncols * ncols < n)); do ncols=$((ncols + 1)); done
+    nrows=$(((n + ncols - 1) / ncols))
+    height=$("$herdr_bin" pane layout --pane "$root" | jq '.result.layout.area.height')
+
+    # Columns left to right, then each column top to bottom, all equal size.
+    pane=$(split "$root" down "$(awk -v h="$height" 'BEGIN { printf "%.4f", 3 / h }')")
+    col_panes=("$pane")
+    for ((c = 1; c < ncols; c++)); do
+      pane=$(split "$pane" right "$(share $((ncols - c + 1)))")
+      col_panes+=("$pane")
+    done
+    for ((c = 0; c < ncols; c++)); do
+      pane=${col_panes[c]}
+      cells+=("$pane")
+      for ((r = 1; r < nrows && c * nrows + r < n; r++)); do
+        pane=$(split "$pane" down "$(share $((nrows - r + 1)))")
+        cells+=("$pane")
+      done
+    done
+
+    local cell_mode=--cell
+    [[ $mode == live ]] && cell_mode=--view
+    for i in "${!rows[@]}"; do
+      IFS=$'\t' read -r m target label <<<"${rows[i]}"
+      "$herdr_bin" pane rename "${cells[i]}" "$m $label" >/dev/null
+      "$herdr_bin" pane run "${cells[i]}" "$(printf '%q %s %q %q %q' "$self" "$cell_mode" "$m" "$target" "$label")" >/dev/null
+    done
+  }
+
+  filters=""
+  ((${#only_machines[@]})) && filters+=" machine=${only_machines[*]}"
+  ((${#only_workspaces[@]})) && filters+=" workspace=${only_workspaces[*]}"
+  echo "$(date +%T) herdr-overview ($mode)$filters · close this tab to stop"
+  last=""
+  while "$herdr_bin" tab get "$tab" >/dev/null 2>&1; do
+    old=("${rows[@]}")
+    mapfile -t rows < <(scan_agents)
+    current=$(printf '%s\n' "${rows[@]}")
+    if [[ $current != "$last" ]]; then
+      rebuild
+      # Agents that left the grid would otherwise keep the cell's size.
+      if [[ $mode == live ]]; then
+        mapfile -t gone < <(comm -23 <(printf '%s\n' "${old[@]}" | sort) <(sort <<<"$current") | sed '/^$/d')
+        ((${#gone[@]} == 0)) || restore_rows "${gone[@]}"
+      fi
+      last=$current
+      echo "$(date +%T) ${#rows[@]} agents: $(cut -f1 <<<"$current" | sort | uniq -c | awk '{printf "%s=%s ", $2, $1}')"
+    fi
+    sleep "$scan"
+  done
+  exit 0
+fi
+
+# --- launcher -----------------------------------------------------------------
+mode=overview focus=--focus
+only_machines=() only_workspaces=()
+args=("$@"); i=0; n=${#args[@]}
+while [[ $i -lt $n ]]; do
+  arg=${args[i]}
+  case $arg in
+    --live) mode=live ;;
+    --no-focus) focus=--no-focus ;;
+    --action)
+      # Set by the herdr-plugin manifest: scope the grid to the invoking workspace.
+      [[ -n ${HERDR_WORKSPACE_ID:-} ]] && only_workspaces+=("$HERDR_WORKSPACE_ID") ;;
+    --machine|--workspace)
+      i=$((i + 1))
+      [[ $i -lt $n ]] || { echo "$arg needs a value" >&2; exit 2; }
+      IFS=, read -ra parts <<<"${args[i]}"
+      if [[ $arg == --machine ]]; then only_machines+=("${parts[@]}")
+      else only_workspaces+=("${parts[@]}"); fi ;;
+    *)
+      echo "usage: herdr-overview [--live] [--no-focus] [--machine <label>,...] [--workspace <id|name>,...]" >&2
+      exit 2 ;;
+  esac
+  i=$((i + 1))
+done
+test "${HERDR_ENV:-}" = 1 || { echo "run inside a herdr pane" >&2; exit 1; }
+
+for prerequisite in setsid nohup jq; do
+  command -v "$prerequisite" >/dev/null || { echo "missing required command: $prerequisite" >&2; exit 1; }
+done
+
+label=overview
+[[ $mode == live ]] && label=live-view
+if ((${#only_machines[@]} || ${#only_workspaces[@]})); then
+  scoped=(${only_machines[@]+"${only_machines[@]}"} ${only_workspaces[@]+"${only_workspaces[@]}"})
+  label="$label [${scoped[*]}]"
+fi
+created=$("$herdr_bin" tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$HOME" --label "$label" "$focus")
+tab=$(jq -r '.result.tab.tab_id' <<<"$created")
+root=$(jq -r '.result.root_pane.pane_id' <<<"$created")
+log=${XDG_STATE_HOME:-$HOME/.local/state}/herdr-overview/${tab//:/-}.log
+mkdir -p "${log%/*}"
+: >"$log"
+
+"$herdr_bin" pane rename "$root" "$label" >/dev/null
+"$herdr_bin" pane run "$root" "clear; tail -n 2 -F $(printf '%q' "$log")" >/dev/null
+ctrl=("$self" --controller "$mode" "$tab" "$root")
+for m in ${only_machines[@]+"${only_machines[@]}"}; do ctrl+=(--machine "$m"); done
+for w in ${only_workspaces[@]+"${only_workspaces[@]}"}; do ctrl+=(--workspace "$w"); done
+setsid nohup "${ctrl[@]}" >>"$log" 2>&1 </dev/null &
+echo "herdr-overview: $label in tab $tab (log: $log)"
