@@ -86,6 +86,11 @@ for topology, inherited in [('tab', 'wA:p15'), ('pane', 'wA:p15'), ('tab', 'wE:p
     prompt = next(c for c in calls if c[:2] == ['agent', 'prompt'])[-1]
     assert 'herdr pane wE:p7.' in prompt and 'Debug task' in prompt
     assert 'run `agent-fork exit` as your last command' in prompt
+    assert 'Leave user-facing sessions open' in prompt
+    assert 'parent Codex session parent-session in herdr pane wE:p7' in prompt
+    assert 'Verify the recipient is still that parent session' in prompt
+    assert 'confirm successful delivery' in prompt
+    assert 'stay open and report the blocker' in prompt
     assert 'continues in pane wE:p7.' in result.stdout
     print(f'PASS: {topology} from {inherited} uses canonical pane/workspace/session')
 
