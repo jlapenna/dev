@@ -1,0 +1,29 @@
+{
+  "skill_name": "takeover",
+  "evals": [
+    {
+      "name": "pick-up-dead-session",
+      "prompt": "The Codex session that was working on the auth refactor ran out of credits halfway through. Pick up where it left off. Before you do anything, lay out the steps you'd follow to figure out what it was asked to do, what it actually finished, and how you'd avoid stepping on another agent already working on it.",
+      "expected_output": "Describes resolving the session descriptor to its transcript, checking for an in-flight successor, claiming the identity, reconstructing intent by separating the user's words from agent claims, verifying every state claim live, writing a brief under ~/.local/state/takeover/, then continuing the agreed plan.",
+      "assertions": [
+        "Resolves the descriptor to a transcript (e.g. scripts/find-session.sh or the ~/.codex/sessions store) and checks for an already-active successor before claiming",
+        "Treats the user's own words as authority and the predecessor's progress claims as evidence to verify with live checks (gh pr view, git worktree list, git ls-remote, etc.)",
+        "Writes a brief at ~/.local/state/takeover/<date>-<slug>.md and says never to wait on or message an agent known to be out of quota"
+      ],
+      "id": 1,
+      "files": []
+    },
+    {
+      "name": "carry-on-from-herdr-pane",
+      "prompt": "The agent in the pane named auth-migration hung and hasn't responded in an hour. Carry on with whatever it was doing. What would you verify first, and what do you do with the old pane?",
+      "expected_output": "Maps the pane name to its harness and session via herdr agent get, checks no other successor is active, verifies live state (PRs, worktrees, branches, services) rather than trusting transcript claims, retitles its own session, and leaves the old agent idle in place.",
+      "assertions": [
+        "Uses `herdr agent get <pane-or-name>` (or find-session.sh) to resolve the pane to a harness and session id",
+        "Leaves the old agent idle in place (does not prompt, resume or close it) and transfers the name only after confirming ownership and no second successor is in flight",
+        "Verifies state live with claim/check/result pairs and lets reality win where the transcript disagrees"
+      ],
+      "id": 2,
+      "files": []
+    }
+  ]
+}

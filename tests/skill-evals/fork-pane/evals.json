@@ -1,0 +1,29 @@
+{
+  "skill_name": "fork-pane",
+  "evals": [
+    {
+      "name": "split-off-to-the-right",
+      "prompt": "Split this conversation off into a new pane beside this one and have that copy go investigate the flaky test in the scheduler package while I keep going here. What single command would you run to do that, and what title would you give it? Don't actually run it.",
+      "expected_output": "Gives the exact agent-fork pane invocation with a short 3-8 word title and the fork task in the heredoc, and notes it only works inside a Herdr pane.",
+      "assertions": [
+        "Uses the exact form `agent-fork pane '<title>' <<'FORK_TASK_EOF' ... FORK_TASK_EOF` with the fork task between the heredoc markers",
+        "Proposes a short title of 3 to 8 words with no single quotes",
+        "States that on failure it reports the error and stops rather than retrying or improvising herdr commands"
+      ],
+      "id": 1,
+      "files": []
+    },
+    {
+      "name": "copy-of-this-session-next-to-me",
+      "prompt": "I want a second copy of exactly this session running in a side-by-side pane in Herdr, with the same context, so I can try a different approach in parallel. How does that get set up and what happens with permission prompts in that pane?",
+      "expected_output": "Explains the agent-fork pane command forks the current conversation into a new pane to the right, detects the agent kind and session from Herdr, and starts the fork with permission prompts skipped because nobody answers them there.",
+      "assertions": [
+        "Names `agent-fork pane` (on PATH) as the mechanism and says it detects the agent's kind and session from herdr",
+        "States the fork starts with permission prompts skipped because nobody answers them in a background pane",
+        "Notes it only works when the calling agent runs inside a herdr pane and that an empty task means dropping the title argument"
+      ],
+      "id": 2,
+      "files": []
+    }
+  ]
+}

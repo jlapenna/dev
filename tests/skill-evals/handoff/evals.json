@@ -1,0 +1,29 @@
+{
+  "skill_name": "handoff",
+  "evals": [
+    {
+      "name": "write-handoff-for-next-session",
+      "prompt": "I'm about to close this session. Write up everything a fresh agent would need to continue this work tomorrow, focused on finishing the migration script. Where would you save it and what would you make sure is in it? Describe the plan; don't write the file yet.",
+      "expected_output": "Describes compacting the conversation into a handoff document saved in the session scratchpad (or OS temp dir), with a suggested-skills section, references to existing artifacts by path/URL instead of duplicating them, redacted secrets, and tailored to the migration-script focus.",
+      "assertions": [
+        "Saves the document in the session scratchpad directory (or the OS temp directory), not the current workspace, and gives the absolute path",
+        "Includes a 'suggested skills' section listing skills the next agent should invoke",
+        "References existing specs, plans, issues, commits or diffs by path or URL instead of duplicating them, and redacts API keys, passwords and PII"
+      ],
+      "id": 1,
+      "files": []
+    },
+    {
+      "name": "context-nearly-full",
+      "prompt": "This conversation is getting huge and I'm going to start a new one. Summarize where we are so the next agent can pick up, and tell me what you'd leave out so the summary doesn't bloat.",
+      "expected_output": "Explains it would write a compact handoff document for a fresh agent, omitting content already captured in other artifacts and any secrets, stored outside the workspace with its absolute path returned.",
+      "assertions": [
+        "Leaves out content already captured in specs, plans, ADRs, issues, commits or diffs and references them by path or URL instead",
+        "Redacts sensitive information such as API keys, passwords or PII",
+        "Stores the document in the scratchpad/temp directory rather than the workspace and reports the absolute path"
+      ],
+      "id": 2,
+      "files": []
+    }
+  ]
+}

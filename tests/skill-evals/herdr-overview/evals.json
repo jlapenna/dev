@@ -1,0 +1,29 @@
+{
+  "skill_name": "herdr-overview",
+  "evals": [
+    {
+      "name": "live-grid-of-all-agents",
+      "prompt": "Show me a live grid of every coding agent running across my local Herdr session and all my saved machines so I can watch them at once. Before you open it, tell me what you'd check first and the exact command you'd run.",
+      "expected_output": "Checks HERDR_ENV=1 and that the herdr-overview command is installed, then runs herdr-overview (or the overview-all plugin action), and reads the controller log rather than re-running to confirm.",
+      "assertions": [
+        "Checks the prerequisites with `test \"${HERDR_ENV:-}\" = 1 && command -v herdr-overview` and stops with what is missing if either fails",
+        "Runs `herdr-overview` (optionally --live or --no-focus) or `herdr plugin action invoke herdr-overview.overview-all`",
+        "Confirms it worked by tailing the newest log under ~/.local/state/herdr-overview/ for the `N agents:` line rather than re-running the command"
+      ],
+      "id": 1,
+      "files": []
+    },
+    {
+      "name": "only-one-machine-agents",
+      "prompt": "I only care about the agents on one of my remote boxes in the p workspace right now. How do I get a view of just those, and how do I shut it down cleanly afterwards without killing anything I shouldn't?",
+      "expected_output": "Uses herdr-overview --machine <name> --workspace p to scope the grid, confirms the intended set from the log's N agents line, and stops it by closing the overview tab with herdr tab close rather than killing the controller.",
+      "assertions": [
+        "Uses `--machine <machine>` and/or `--workspace p` (AND-combined, comma lists allowed) to scope the grid",
+        "Stops the grid with `herdr tab close <tab_id>` and says not to kill the controller process directly",
+        "Warns not to run `herdr agent attach` yourself while a live overview is open"
+      ],
+      "id": 2,
+      "files": []
+    }
+  ]
+}

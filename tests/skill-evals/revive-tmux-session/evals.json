@@ -1,0 +1,29 @@
+{
+  "skill_name": "revive-tmux-session",
+  "evals": [
+    {
+      "name": "pane-vanished-mid-task",
+      "prompt": "A tmux window where codex was halfway through a refactor just disappeared. I think the process might still be alive. What are the steps and commands you'd run to find it and give it a new window with the same cwd and flags? Don't run anything yet.",
+      "expected_output": "Runs find-orphans.sh (optionally scoped to the repo path) to find pane-less claude/codex processes via /proc, then revive.sh <pid> to open a new tmux window with the original cwd and argv; if the process is gone, falls back to find-dead-sessions.sh and revive-dead.sh from the transcript.",
+      "assertions": [
+        "Names scripts/find-orphans.sh to locate orphaned-but-alive claude or codex processes and scripts/revive.sh <pid> to relaunch in a new tmux window from /proc cwd and argv",
+        "Mentions the fully-dead case handled by find-dead-sessions.sh and revive-dead.sh <claude|codex> <session-id> <cwd> using the saved session id",
+        "Warns to kill the orphan's process group (kill -- -<pgid>, plus any detached MCP/codex-code-mode-host helper) before resuming the same session id to avoid two processes writing one transcript"
+      ],
+      "id": 1,
+      "files": []
+    },
+    {
+      "name": "did-i-lose-work-before-git-reset",
+      "prompt": "Before I reset a shared checkout that a few Claude sessions have been using, I want to make sure none of them are still secretly alive after their panes got closed. Also, one pane closed right as it finished and I never saw the answer. What should I check, and what tells me whether that last answer is recoverable?",
+      "expected_output": "Says tmux list-panes undercounts live sessions, so run find-orphans.sh <repo-path> before any git-mutating command; for the vanished one-shot pane, use find-dead-sessions.sh to find the transcript and revive-dead.sh to resume it from the saved session id.",
+      "assertions": [
+        "States that tmux panes undercount live sessions and that find-orphans.sh <repo-path> must be run before git checkout/stash/reset/commit/merge in a shared checkout",
+        "Explains that a one-shot invocation finishing ends the shell and the window vanishes (no remain-on-exit), so the answer is recovered from the transcript via find-dead-sessions.sh and revive-dead.sh",
+        "Notes that sub-agent transcripts are not resumable and are excluded/refused by the dead-session scripts"
+      ],
+      "id": 2,
+      "files": []
+    }
+  ]
+}

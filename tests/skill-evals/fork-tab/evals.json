@@ -1,0 +1,29 @@
+{
+  "skill_name": "fork-tab",
+  "evals": [
+    {
+      "name": "fork-into-new-tab",
+      "prompt": "Open a new tab in Herdr with a forked copy of this conversation and have it draft the release notes for v2.3 while I stay on the bug here. Tell me the exact command you'd run and the title you'd pick, but don't run it yet.",
+      "expected_output": "Gives the exact agent-fork tab invocation with a 3-8 word title and the release-notes task in the heredoc, and says it reports the command output in one or two lines.",
+      "assertions": [
+        "Uses the exact form `agent-fork tab '<title>' <<'FORK_TASK_EOF' ... FORK_TASK_EOF` with the fork task between the heredoc markers",
+        "Proposes a short title of 3 to 8 words with no single quotes",
+        "States that it reports the output in one or two lines and on failure reports the error and stops without retrying"
+      ],
+      "id": 1,
+      "files": []
+    },
+    {
+      "name": "background-tab-same-context",
+      "prompt": "Can you spin off a background tab that inherits everything we've discussed so far, so it can keep going on its own? What tool makes that happen and why doesn't it get stuck on approval prompts?",
+      "expected_output": "Explains agent-fork tab opens a new Herdr tab with a fork of the current conversation and starts it with permission prompts skipped because nobody answers them in a background tab; requires running inside a Herdr pane.",
+      "assertions": [
+        "Names `agent-fork tab` as the command and says it detects the agent kind and session from herdr",
+        "States the fork starts with permission prompts skipped because nobody answers them in a background tab",
+        "Mentions it only works when the calling agent is running inside a herdr pane"
+      ],
+      "id": 2,
+      "files": []
+    }
+  ]
+}
