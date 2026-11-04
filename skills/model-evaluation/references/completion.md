@@ -59,6 +59,16 @@ future launch queues so a watcher does not restart finished work.
 
 ## Publish a durable, bounded record
 
+Finish the `repo-eval-history` record for every ordinary run and hill-climb
+attempt, including failures, discarded and inconclusive candidates. Attach
+selected reports, metrics and patches before removing scratch checkouts; keep
+large/private collections at their protected owner with durable references.
+Retain reproducibility evidence for at least 90 days. Publish a bounded summary
+with the run ID, owning host/path and report link to the consumer's shared
+registry/memory so other sessions and hosts can find it before repeating work.
+State the specific change or new evidence that would justify revisiting a
+rejected candidate; do not replace original grades with later adjudication.
+
 Save a dated report at the consumer’s existing evidence owner. Include the
 selected configuration and reasons, comparison conditions, exact manifests and
 upstream pins, derived tables, score denominators/recovery policy, failure audits,

@@ -7,6 +7,8 @@ blocker or why a phase is outside the task.
 ## Contract and ownership
 
 - User objective, topology, clients, context/output, concurrency, local-only policy:
+- Evaluation-history run ID/store and prior matching records checked:
+- Hypotheses already rejected, repeat reason, and conditions for revisiting:
 - Research date window and selection criteria:
 - Issue/report, operator/session, authoring worktree and branch:
 - Baseline serving state and recovery configuration:
@@ -64,6 +66,7 @@ blocker or why a phase is outside the task.
 - Exact original source/runtime comparison and ordinary authenticated post-cleanup request:
 - Selected configuration versus restored live state versus approved permanent deployment:
 - Durable report path, bounded supporting data, raw-artifact manifest and publication checks:
+- Terminal history status, source/suite/model/grader fingerprints, and minimum 90-day evidence retention:
 - Terminal execution state, cleared queues, owned helpers/worktree cleanup receipts:
 - Previous step: progress / verified wait (live handle) / no progress:
 - Next concrete action and its completion evidence:

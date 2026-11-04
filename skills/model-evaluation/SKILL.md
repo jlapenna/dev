@@ -11,6 +11,19 @@ and smoke tests alone do not establish a better model.
 
 ## Define the comparison
 
+Consult `repo-eval-history find` and the consumer's shared registry/memory before
+launching measurements. Inspect prior matching configurations, rejected
+hypotheses and conditions for revisiting them. Follow the shared
+[evaluation history contract](https://github.com/jlapenna/repo-tools/blob/main/docs/evaluation-history.md):
+register regular runs and hill climbs, retain their bounded evidence for at
+least 90 days, and record why a deliberate repeat is needed. A local-store miss
+does not establish that another host has not already evaluated the candidate.
+Carry the run ID, owning host/path and protected report reference into the
+bounded shared summary. Keep raw traces and credentials out of public source.
+Complete storage/publication already authorized by the evaluation request;
+do not add a new confirmation for that work or infer authority for a new
+external destination.
+
 Inspect the live baseline, source recipe, and environment's operating guide.
 Record workload, clients, context/output budget, concurrency, quality priorities,
 research window, and operational authorization using the
