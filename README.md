@@ -38,11 +38,19 @@ with the corresponding agent's unattended permission flags; use it only in
 an environment where that execution mode is authorized. A failed startup leaves
 the new pane open for inspection and returns the actual failure.
 
-A finished session ends itself with `agent-fork exit`. It returns at once and
-leaves a detached waiter. When the session's current turn ends, the waiter
-sends `/exit` and closes the pane. It stands down if the session is busy again
-by then. Every fork's starting instructions tell it to run this once its task
-is complete and verified, so finished forks do not pile up as idle tabs.
+User-facing sessions stay open for review and continuation until the user asks
+to close them. Agent-spawned workers doing delegated work exit automatically
+only after completing and verifying their task, stopping their background work,
+cleaning up their task checkout, and successfully delivering their summary and
+verification results to the identified parent session. A reply in the worker's
+own pane is not delivery to the parent. If delivery fails or cannot be confirmed,
+the worker stays open and reports the blocker. A fork is not necessarily a worker.
+
+After successful delivery, a worker runs `agent-fork exit`. It returns at once
+and leaves a detached waiter. When the current turn ends, the waiter sends
+`/exit` and closes the pane. It stands down if the session is busy again by then.
+The helper supplies these lifecycle instructions to each fork; it does not
+itself verify task completion or delivery to the parent.
 
 ## Herdr integrations
 

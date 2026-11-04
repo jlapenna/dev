@@ -10,7 +10,8 @@
 #   The optional fork task is read from stdin, so any text survives quoting.
 #   The agent kind and session id come from herdr's record of the calling pane.
 #   exit ends the calling session once its current turn finishes: the agent
-#   gets /exit and its pane closes. Run it as a finished session's last step.
+#   gets /exit and its pane closes. Use it after a delegated worker reports
+#   successfully to its parent, or when the user explicitly asks to close.
 set -euo pipefail
 
 where=${1:-}
@@ -136,7 +137,8 @@ notice="You are a fork of $label session $sid, created with fork-$where. Everyth
 - Treat shared history as context, not live state; the original kept acting on the world after the copy point, so re-verify files, git state, and processes before relying on them.${extra}
 - Do not edit the original session; work only in this fork.
 $retitle
-- When your task is fully complete and verified, with nothing you started still running or awaiting a result, run \`agent-fork exit\` as your last command, then give your final report. The session exits and this $where closes after that turn.
+- Leave user-facing sessions open for review and continuation unless the user explicitly asks to close them. Being a fork does not by itself make you a delegated worker.
+- If you are an agent-spawned worker doing delegated work, finish and verify the task, stop your background work and watchers, and clean up your task checkout. Before exiting, send your work summary, verification results and any remaining items to parent $label session $sid in herdr pane $source_pane through its coordination channel. Verify the recipient is still that parent session and confirm successful delivery; a final reply in your own pane does not count. If the parent is unavailable or delivery fails or cannot be confirmed, stay open and report the blocker. Only after successful delivery, with nothing awaiting a result or an answer, run \`agent-fork exit\` as your last command, then give your final report. The worker exits and this $where closes after that turn.
 
 $task"
 herdr agent prompt "$name" "$notice" >/dev/null || fail "submitting the fork notice failed; do not resend"
