@@ -5,11 +5,23 @@ import argparse
 import json
 import os
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 
 
 SOURCE = "homegit:session-title"
+GENERIC_TITLES = {
+    "agy",
+    "antigravity",
+    "antigravity cli",
+    "claude",
+    "claude code",
+    "codex",
+    "codex cli",
+    "opencode",
+    "untitled",
+}
 
 
 def records(path):
@@ -32,6 +44,43 @@ def clean(value):
     return " ".join(value.split())[:240]
 
 
+def agy_titles(db_path, wanted):
+    if not wanted or not db_path.is_file():
+        return {}
+    try:
+        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=1.0) as conn:
+            rows = conn.execute(
+                "SELECT conversation_id, title, parent_conversation_id "
+                "FROM conversation_summaries"
+            ).fetchall()
+    except sqlite3.Error:
+        return {}
+    own_title = {}
+    parent_of = {}
+    for cid, title, parent_id in rows:
+        if isinstance(cid, str) and cid:
+            own_title[cid] = clean(title)
+            if isinstance(parent_id, str) and parent_id:
+                parent_of[cid] = parent_id
+    found = {}
+    for sid in wanted:
+        if sid not in own_title and sid not in parent_of:
+            continue
+        root = sid
+        seen = set()
+        while root in parent_of and root not in seen:
+            seen.add(root)
+            parent = parent_of[root]
+            if parent in own_title or parent in parent_of:
+                root = parent
+            else:
+                break
+        title = own_title.get(root) or own_title.get(sid) or ""
+        if title and title.lower() not in GENERIC_TITLES:
+            found[("agy", sid)] = title
+    return found
+
+
 def saved_titles(agents, home):
     wanted = {a.get("agent_session", {}).get("value") for a in agents
               if isinstance(a.get("agent_session"), dict)}
@@ -40,19 +89,20 @@ def saved_titles(agents, home):
     for record in records(codex_home / "session_index.jsonl"):
         if record.get("id") in wanted and clean(record.get("thread_name")):
             titles[("codex", record["id"])] = clean(record["thread_name"])
+    agy_home = Path(os.environ.get("AGY_DATA_DIR", home / ".gemini/antigravity-cli"))
+    titles.update(agy_titles(agy_home / "conversation_summaries.db", wanted))
     for agent in agents:
         session = agent.get("agent_session") or {}
         sid = session.get("value", "")
         kind = agent.get("agent")
-        if (kind not in {"claude", "codex"} or session.get("agent") != kind
-                or session.get("kind") != "id"):
+        if (kind not in {"agy", "claude", "codex", "opencode"}
+                or session.get("agent") != kind or session.get("kind") != "id"):
             continue
         # Native /rename updates this metadata and the saved session together.
         # Claude has no separate title index: never scan its conversation files.
-        # A native title also covers a Codex session missing from its index.
+        # A native title also covers a session missing from its index.
         native = clean(agent.get("terminal_title_stripped"))
-        if native and native.lower() not in {
-                "claude", "claude code", "codex", "codex cli", "untitled"}:
+        if native and native.lower() not in GENERIC_TITLES:
             titles.setdefault((kind, sid), native)
     return titles
 

@@ -126,6 +126,16 @@ prompts = [c for c in calls if c[:2] == ['agent', 'prompt']]
 assert prompts[0][-1] == '/rename Spam triage', prompts
 print('PASS: OpenCode forks are retitled with /rename too')
 
+result, calls = run('tab', 'wE:p7', title='Agy task', kind='agy')
+assert result.returncode == 0, result.stderr
+start = next(c for c in calls if c[:2] == ['agent', 'start'])
+assert '--dangerously-skip-permissions' in start and '--conversation' in start and sid in start, start
+prompts = [c for c in calls if c[:2] == ['agent', 'prompt']]
+assert prompts[0][-1] == '/fork', prompts
+assert prompts[1][-1] == '/rename Agy task', prompts
+assert 'parent Antigravity session parent-session in herdr pane wE:p7' in prompts[2][-1], prompts
+print('PASS: Antigravity forks branch with /fork and retitle with /rename')
+
 result, calls = run('exit', 'wA:p15', status='idle')
 assert result.returncode == 0, result.stderr
 assert 'pane wE:p7 closes' in result.stdout

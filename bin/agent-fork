@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Fork the calling Claude Code, Codex or OpenCode session into a new herdr
-# pane (right) or tab. Backs each agent's fork-pane and fork-tab entry points.
+# Fork the calling Antigravity, Claude Code, Codex or OpenCode session into a
+# new herdr pane (right) or tab. Backs each agent's fork-pane and fork-tab entry
+# points.
 #
 # Usage: agent-fork pane|tab ["short title"] [<<<"fork task"]
 #        agent-fork exit
@@ -60,6 +61,11 @@ workspace=$(jq -er '.result.pane.workspace_id' <<<"$caller")
 # Nobody answers permission prompts in a background pane, so every fork skips
 # them; otherwise it blocks on its first tool call.
 case "$kind" in
+  agy)
+    label=Antigravity
+    args=(--dangerously-skip-permissions --conversation "$sid")
+    extra=""
+    ;;
   claude)
     label=Claude
     args=(--dangerously-skip-permissions --resume "$sid" --fork-session)
@@ -76,7 +82,7 @@ case "$kind" in
     extra=$'\n- Inspect the original session with: opencode export '"$sid"
     ;;
   *)
-    echo "ERROR: unsupported agent kind '${kind:-unknown}' in pane $HERDR_PANE_ID (claude, codex or opencode)" >&2
+    echo "ERROR: unsupported agent kind '${kind:-unknown}' in pane $HERDR_PANE_ID (agy, claude, codex or opencode)" >&2
     exit 1
     ;;
 esac
@@ -124,8 +130,14 @@ if ! herdr agent start "$name" --kind "$kind" --pane "$pane" --timeout 90000 -- 
   fi
 fi
 
-# A fork starts with its parent's title. Claude, Codex and OpenCode apply
-# /rename as a local command, without starting a model turn.
+# Antigravity resumes the original conversation via --conversation and branches
+# it locally with /fork before any rename or notice is sent.
+if [ "$kind" = agy ]; then
+  herdr agent prompt "$name" /fork >/dev/null || fail "forking the Antigravity conversation failed"
+fi
+
+# A fork starts with its parent's title. Antigravity, Claude, Codex and OpenCode
+# apply /rename as a local command, without starting a model turn.
 if [ -n "$title" ]; then
   herdr agent prompt "$name" "/rename $title" >/dev/null || fail "setting the fork's title failed"
   retitle="- Your session title is \"$title\"."

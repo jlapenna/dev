@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -41,10 +42,30 @@ class TitlesTest(unittest.TestCase):
             index = home / '.codex/session_index.jsonl'
             with index.open('a') as stream:
                 stream.write('null\n{"partial":\n')
+            agy_db = home / '.gemini/antigravity-cli/conversation_summaries.db'
+            agy_db.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(agy_db) as con:
+                con.execute(
+                    'CREATE TABLE conversation_summaries ('
+                    'conversation_id TEXT PRIMARY KEY, title TEXT, parent_conversation_id TEXT)'
+                )
+                con.executemany(
+                    'INSERT INTO conversation_summaries VALUES (?, ?, ?)',
+                    [
+                        ('agy-root', 'Saved Agy Title', ''),
+                        ('agy-sub', '', 'agy-root'),
+                        ('agy-untitled', 'Untitled', ''),
+                    ],
+                )
             claude = agent('claude', 'claude-id')
             claude['terminal_title_stripped'] = 'Chosen Claude'
             codex = agent('codex', 'codex-id')
             codex['terminal_title_stripped'] = 'Old terminal title'
+            agy_root = agent('agy', 'agy-root')
+            agy_root['terminal_title_stripped'] = 'Stale terminal title'
+            agy_sub = agent('agy', 'agy-sub')
+            agy_untitled = agent('agy', 'agy-untitled')
+            agy_untitled['terminal_title_stripped'] = 'Terminal Agy Title'
             original_open = Path.open
 
             def metadata_only(path, *args, **kwargs):
@@ -56,10 +77,13 @@ class TitlesTest(unittest.TestCase):
                     patch.object(Path, 'open', metadata_only), \
                     patch.object(Path, 'glob', side_effect=AssertionError('no transcript scans')):
                 found = titles.saved_titles([
-                    codex, claude,
+                    codex, claude, agy_root, agy_sub, agy_untitled,
                     agent('claude', '../outside'), agent('claude', 'missing')], home)
             self.assertEqual(found, {('codex', 'codex-id'): 'Renamed Codex',
-                                     ('claude', 'claude-id'): 'Chosen Claude'})
+                                     ('claude', 'claude-id'): 'Chosen Claude',
+                                     ('agy', 'agy-root'): 'Saved Agy Title',
+                                     ('agy', 'agy-sub'): 'Saved Agy Title',
+                                     ('agy', 'agy-untitled'): 'Terminal Agy Title'})
 
     def test_changed_session_is_not_given_the_previous_title(self):
         original, replacement = agent('codex', 'old'), agent('codex', 'new')
