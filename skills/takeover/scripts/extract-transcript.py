@@ -2,6 +2,7 @@
 """Condense an agent transcript into what a successor needs to read.
 
 Supports:
+  - Antigravity:  ~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl
   - Claude Code:  ~/.claude/projects/<cwd-slug>/<session-id>.jsonl
   - Codex CLI:    ~/.codex/sessions/YYYY/MM/DD/rollout-*-<thread-id>.jsonl
   - OpenCode:     ~/.local/share/opencode/opencode.db (pass ses_... id)
@@ -98,6 +99,24 @@ def load_opencode(session_id, db=os.path.expanduser("~/.local/share/opencode/ope
                 if result: rows.append((ts, "RESULT" + (" (error)" if state.get("error") else ""), str(result)))
     return meta, rows
 
+def load_agy(path):
+    sid = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(path)))))
+    meta, rows = {"id": sid, "harness": "agy"}, []
+    for line in open(path, encoding="utf-8", errors="replace"):
+        try: o = json.loads(line)
+        except ValueError: continue
+        ts, t, c = o.get("created_at", ""), o.get("type"), o.get("content", "")
+        if not meta.get("timestamp") and ts: meta["timestamp"] = ts
+        if t == "USER_INPUT" and c:
+            rows.append((ts, "user", c))
+        elif t == "PLANNER_RESPONSE":
+            if c: rows.append((ts, "assistant", c))
+            for tc in o.get("tool_calls") or []:
+                rows.append((ts, "CALL " + str(tc.get("name")), json.dumps(tc.get("args"))))
+        elif t == "GENERIC" and c:
+            rows.append((ts, "RESULT", c))
+    return meta, rows
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("source"); ap.add_argument("--out"); ap.add_argument("--last", type=int, default=25)
@@ -107,7 +126,12 @@ def main():
     if a.source.startswith("ses_"): meta, rows = load_opencode(a.source)
     else:
         head = open(a.source, encoding="utf-8", errors="replace").readline()
-        meta, rows = (load_codex if '"session_meta"' in head or "rollout-" in os.path.basename(a.source) else load_claude)(a.source)
+        if '"step_index"' in head:
+            meta, rows = load_agy(a.source)
+        elif '"session_meta"' in head or "rollout-" in os.path.basename(a.source):
+            meta, rows = load_codex(a.source)
+        else:
+            meta, rows = load_claude(a.source)
     if a.since: rows = [r for r in rows if r[0] >= a.since]
     out = open(a.out, "w") if a.out else sys.stdout
     out.write("META " + json.dumps(meta) + "\n\n=== ALL USER MESSAGES (truncated %d) ===\n" % a.user_max)

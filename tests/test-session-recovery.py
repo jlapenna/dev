@@ -119,6 +119,20 @@ res = run('extract-claude-child', [sys.executable, TAKE / 'extract-transcript.py
 check('Claude child identity and parent retained', '"id": "abc123"' in res.stdout and '"parent_session": "fixture-claude"' in res.stdout, res.stdout[:500])
 res = run('extract-codex', [sys.executable, TAKE / 'extract-transcript.py', top])
 check('Codex task and call result retained', 'Continue issue #4821' in res.stdout and 'passed' in res.stdout, res.stdout[:500])
+agyid = '45678901-4444-4444-8444-444444444444'
+agy = write_jsonl(HOME / '.gemini/antigravity-cli/brain' / agyid / '.system_generated/logs/transcript.jsonl', [
+    {'step_index': 0, 'source': 'USER_EXPLICIT', 'type': 'USER_INPUT', 'status': 'DONE',
+     'created_at': '2026-11-01T10:00:00Z', 'content': 'Fix agy title sync in Herdr.'},
+    {'step_index': 1, 'source': 'MODEL', 'type': 'PLANNER_RESPONSE', 'status': 'DONE',
+     'created_at': '2026-11-01T10:01:00Z', 'content': 'Checking herdr-session-titles.',
+     'tool_calls': [{'name': 'read_file', 'args': {'Path': '/tmp/x'}}]},
+    {'step_index': 2, 'source': 'MODEL', 'type': 'GENERIC', 'status': 'DONE',
+     'created_at': '2026-11-01T10:01:05Z', 'content': 'File read ok.'},
+])
+res = run('resolve-agy', ['bash', TAKE / 'find-session.sh', agyid[:8]])
+check('resolve Antigravity session by prefix', res.returncode == 0 and f'agy\t{agyid}\t{agy}' in res.stdout, res.stdout)
+res = run('extract-agy', [sys.executable, TAKE / 'extract-transcript.py', agy])
+check('Antigravity task and tool call retained', 'Fix agy title sync in Herdr.' in res.stdout and 'CALL read_file' in res.stdout, res.stdout[:500])
 
 res = run('metadata-batch', [sys.executable, REV / 'transcript-meta.py', claude, subclaude, top, sub])
 rows = [line.split('\x1f') for line in res.stdout.splitlines()]

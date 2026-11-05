@@ -26,8 +26,13 @@ fi
 # 3. OpenCode id
 case "$d" in ses_*) emit opencode "$d" "$HOME/.local/share/opencode/opencode.db"; exit 0;; esac
 
-# 4. id or prefix in Claude / Codex stores
+# 4. id or prefix in Antigravity / Claude / Codex stores
 found=0
+while IFS= read -r f; do
+  bdir=$(dirname "$(dirname "$(dirname "$f")")")
+  emit agy "$(basename "$bdir")" "$f"
+  found=1
+done < <(find "$HOME/.gemini/antigravity-cli/brain" -maxdepth 4 -path "*/${d}*/.system_generated/logs/transcript.jsonl" 2>/dev/null)
 while IFS= read -r f; do emit claude "$(basename "$f" .jsonl)" "$f"; found=1; done < <(find "$HOME/.claude/projects" -maxdepth 2 -name "${d}*.jsonl" 2>/dev/null)
 # Claude subagents: <project>/<parent-session>/subagents/agent-<hash>.jsonl (id with or without the agent- prefix)
 while IFS= read -r f; do emit claude-subagent "$(basename "$f" .jsonl)" "$f"; found=1; done < <(find "$HOME/.claude/projects" -maxdepth 4 -path '*/subagents/*' \( -name "${d}*.jsonl" -o -name "agent-${d}*.jsonl" \) 2>/dev/null)
