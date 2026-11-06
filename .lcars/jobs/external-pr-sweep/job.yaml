@@ -1,0 +1,30 @@
+version: 1
+description: Read-only report on the authenticated user's open pull requests to external projects.
+triggers:
+  manual: true
+execution:
+  recipe: ./recipe.yaml
+  profile: dev-personal-github
+  timeout: 30m
+  maxAttempts: 1
+  resources:
+    requests:
+      cpu: 2
+      memory: 6Gi
+      storage: 24Gi
+    limits:
+      cpu: 2
+      memory: 6Gi
+      storage: 24Gi
+inputs:
+  mode: report
+concurrency:
+  maxRuns: 1
+  overlap: skip
+state:
+  previousSuccessfulResult: false
+result:
+  contract: json-v1
+  requiredArtifacts:
+    - report.md
+    - result.json
