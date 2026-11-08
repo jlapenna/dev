@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 import unittest
 
-from discover_prs import DiscoveryError, discover, search
+from discover_prs import DiscoveryError, admin_orgs, discover, search
 
 
 def item(number, repository="outside/project", state="open"):
@@ -49,6 +49,35 @@ class DiscoveryTests(unittest.TestCase):
             batch = [item(1, "team/project")] if "is:open" in fields["q"] else []
             return {"total_count": len(batch), "items": batch}
         self.assertEqual(discover("example-user", api=api)["prs"][0]["repository"], "team/project")
+
+    def test_administered_organizations_are_own_repositories(self):
+        calls = []
+
+        def api(endpoint, fields):
+            calls.append(fields["q"])
+            batch = [item(1), item(2, "Own-Org/site"), item(3, "member/project")]
+            return {"total_count": len(batch), "items": batch}
+
+        result = discover("example-user", own_orgs=["own-org", "Own-Org", "example-user"], api=api)
+        self.assertTrue(result["complete"])
+        self.assertEqual([pr["number"] for pr in result["prs"]], [1, 3])
+        self.assertEqual(result["scope"]["own_admin_orgs"], ["Own-Org"])
+        self.assertEqual(calls, ["is:pr author:example-user is:open -user:example-user -org:Own-Org"])
+
+    def test_admin_orgs_keeps_only_admin_memberships(self):
+        def api(endpoint, fields):
+            self.assertEqual(endpoint, "user/memberships/orgs")
+            return [{"organization": {"login": "zeta"}, "role": "admin"},
+                    {"organization": {"login": "member"}, "role": "member"},
+                    {"organization": {"login": "Alpha"}, "role": "admin"}]
+        self.assertEqual(admin_orgs(api), ["Alpha", "zeta"])
+
+    def test_unknown_own_organizations_mark_discovery_incomplete(self):
+        def api(endpoint, fields):
+            return {"total_count": 1, "items": [item(1, "maybe-own/site")]}
+        result = discover("example-user", api=api, problems=["Could not list administered organizations"])
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["problems"], ["Could not list administered organizations"])
 
     def test_paginates_beyond_first_page(self):
         pages = []
