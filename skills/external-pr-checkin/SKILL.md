@@ -17,9 +17,14 @@ local branch evidence as described below.
 Include **open PRs only**, however old. Do not discover, inspect, count or report
 merged or closed PRs, including those in an explicit list. Drop a PR from the pass
 as soon as a live refresh shows it has merged or closed. Explain the open-only
-scope in the report. Resolve the author from `gh api user --jq .login`. "External" defaults to a repository owned by someone other than
-that author. Include organization repositories even if the author has write
-access; use user-specified owner/repository exclusions when some are personal.
+scope in the report. Resolve the author from `gh api user --jq .login`. This
+skill covers the author's contributions to other people's projects. The author's
+own repositories are those under their account and under organizations they
+administer; the helper excludes both. "External" is every other owner, including
+organizations where the author is only a member or has write access. Apply
+user-specified owner/repository exclusions on top. If the helper reports that it
+could not list administered organizations, coverage is incomplete: own
+repositories may appear as external, so ask before treating them as upstream.
 Do not confuse a contribution's personal fork with its upstream base repository.
 
 Run the bundled discovery helper with Python 3:
@@ -29,7 +34,12 @@ python3 <skill-dir>/scripts/discover_prs.py
 # Optional scope overrides:
 python3 <skill-dir>/scripts/discover_prs.py --exclude-owner my-org
 python3 <skill-dir>/scripts/discover_prs.py --author example-user --exclude-repo org/repo
+# Count administered organizations as external (rarely wanted):
+python3 <skill-dir>/scripts/discover_prs.py --include-admin-orgs
 ```
+
+Administered organizations come from the authenticated identity's memberships,
+so they are detected only for the default author, not with `--author`.
 
 It paginates the open-PR search, deduplicates by PR URL, and reports search truncation
 or failures explicitly. Its output is discovery metadata, **not live merge/CI
