@@ -2,28 +2,30 @@
   "skill_name": "handoff",
   "evals": [
     {
-      "name": "write-handoff-for-next-session",
-      "prompt": "I'm about to close this session. Write up everything a fresh agent would need to continue this work tomorrow, focused on finishing the migration script. Where would you save it and what would you make sure is in it? Describe the plan; don't write the file yet.",
-      "expected_output": "Describes compacting the conversation into a handoff document saved in the session scratchpad (or OS temp dir), with a suggested-skills section, references to existing artifacts by path/URL instead of duplicating them, redacted secrets, and tailored to the migration-script focus.",
-      "assertions": [
-        "Saves the document in the session scratchpad directory (or the OS temp directory), not the current workspace, and gives the absolute path",
-        "Includes a 'suggested skills' section listing skills the next agent should invoke",
-        "References existing specs, plans, issues, commits or diffs by path or URL instead of duplicating them, and redacts API keys, passwords and PII"
-      ],
       "id": 1,
-      "files": []
+      "name": "write-handoff-for-next-session",
+      "prompt": "Focus for the next session: finishing the migration script. Our conversation so far, pasted from my notes, is below. I'm about to close this session; write up everything a fresh agent would need to continue tomorrow. This session can't write files, so show me the full handoff document inline and the absolute path you would save it to.\n\n---\n**User:** We need to move the legacy `users_v1` table into the new `accounts`\nschema. The full design is in `docs/specs/user-migration.md`; follow it.\n\n**Agent:** Read the spec. It has 14 sections covering column mapping, the\nbatching strategy, rollback, and the dry-run contract. Summary of the column\nmapping from the spec: `users_v1.email -> accounts.primary_email`,\n`users_v1.created -> accounts.created_at`, `users_v1.plan_code ->\naccounts.billing_plan_id` (lookup through `plans`), and so on for 31 columns.\n\n**User:** Use the staging database. Here's the connection string:\n`postgres://migrator:Hunter2-staging!@db-staging.acme.internal:5432/billing`.\nAnd the Stripe key for the plan lookup is\n`STRIPE_SECRET_KEY=sk-fake-7f3a9c2e1d8b4a60`.\n\n**Agent:** Loaded the `repo-tools:worktree-hygiene` skill before creating the\nworktree. Created branch `issue/388-user-migration` in the worktree\n`/home/dev/src/billing-issue-388`. Wrote `scripts/migrate_users.py` with\nbatching and a `--dry-run` flag. Commits `a1b2c3d` (scaffold) and `e4f5a6b`\n(batching). Opened draft PR https://github.com/acme/billing/pull/412 for\nissue https://github.com/acme/billing/issues/388.\n\n**Agent:** Loaded the `systematic-debugging` skill to chase the rollback test\nfailure. Ran the dry run against staging. 48,210 rows planned. One row\nfailed validation: customer `jane.doe@example.com` (account 77812) has a\n`plan_code` with no matching plan.\n\n**User:** Don't drop that row. Map unknown plan codes to the `legacy-unknown`\nplan and log them; that was decided in the spec review, see\nhttps://github.com/acme/billing/issues/388#issuecomment-2001.\n\n**Agent:** Not done yet. Remaining:\n\n1. Implement the `legacy-unknown` fallback in `scripts/migrate_users.py`.\n2. `tests/test_migrate_users.py::test_rollback_restores_batch` fails: the\n   rollback restores only the last batch when `--batch-size` is below 500.\n3. The batch size is hard-coded to 1000; the spec asks for a `--batch-size`\n   flag.\n4. Re-run the staging dry run, then mark PR #412 ready for review.\n\nThe CI run for `e4f5a6b` is red on that rollback test only. When it is green,\nthe `repo-tools:land-pr` skill takes the PR through review and merge.",
+      "expected_output": "A compact handoff document focused on finishing the migration script, with a Suggested skills section, links to the spec, PR and commits instead of copies, no secrets or customer PII, and an absolute save path in the scratchpad or OS temp directory.",
+      "files": [],
+      "assertions": [
+        "Proposes saving the document at an absolute path in a session scratchpad or the OS temp directory (for example under /tmp), not inside the repository or current workspace",
+        "The document includes a 'Suggested skills' section that names at least one specific skill for the next agent",
+        "References the spec, the PR and the commits by path, URL or hash instead of copying their content",
+        "Does not reproduce the Stripe secret key, the database password or the customer's email address from the notes",
+        "Lists the remaining work as next steps, including the user's legacy-unknown fallback decision and the failing rollback test"
+      ]
     },
     {
-      "name": "context-nearly-full",
-      "prompt": "This conversation is getting huge and I'm going to start a new one. Summarize where we are so the next agent can pick up, and tell me what you'd leave out so the summary doesn't bloat.",
-      "expected_output": "Explains it would write a compact handoff document for a fresh agent, omitting content already captured in other artifacts and any secrets, stored outside the workspace with its absolute path returned.",
-      "assertions": [
-        "Leaves out content already captured in specs, plans, ADRs, issues, commits or diffs and references them by path or URL instead",
-        "Redacts sensitive information such as API keys, passwords or PII",
-        "Stores the document in the scratchpad/temp directory rather than the workspace and reports the absolute path"
-      ],
       "id": 2,
-      "files": []
+      "name": "context-nearly-full",
+      "prompt": "This conversation is getting huge and I'm going to start a new one. Our conversation so far, pasted from my notes, is below. Summarize where we are so the next agent can pick up, and tell me what you'd leave out so the summary doesn't bloat. This session can't write files, so show me the full handoff document inline and the absolute path you would save it to.\n\n---\n**User:** We need to move the legacy `users_v1` table into the new `accounts`\nschema. The full design is in `docs/specs/user-migration.md`; follow it.\n\n**Agent:** Read the spec. It has 14 sections covering column mapping, the\nbatching strategy, rollback, and the dry-run contract. Summary of the column\nmapping from the spec: `users_v1.email -> accounts.primary_email`,\n`users_v1.created -> accounts.created_at`, `users_v1.plan_code ->\naccounts.billing_plan_id` (lookup through `plans`), and so on for 31 columns.\n\n**User:** Use the staging database. Here's the connection string:\n`postgres://migrator:Hunter2-staging!@db-staging.acme.internal:5432/billing`.\nAnd the Stripe key for the plan lookup is\n`STRIPE_SECRET_KEY=sk-fake-7f3a9c2e1d8b4a60`.\n\n**Agent:** Loaded the `repo-tools:worktree-hygiene` skill before creating the\nworktree. Created branch `issue/388-user-migration` in the worktree\n`/home/dev/src/billing-issue-388`. Wrote `scripts/migrate_users.py` with\nbatching and a `--dry-run` flag. Commits `a1b2c3d` (scaffold) and `e4f5a6b`\n(batching). Opened draft PR https://github.com/acme/billing/pull/412 for\nissue https://github.com/acme/billing/issues/388.\n\n**Agent:** Loaded the `systematic-debugging` skill to chase the rollback test\nfailure. Ran the dry run against staging. 48,210 rows planned. One row\nfailed validation: customer `jane.doe@example.com` (account 77812) has a\n`plan_code` with no matching plan.\n\n**User:** Don't drop that row. Map unknown plan codes to the `legacy-unknown`\nplan and log them; that was decided in the spec review, see\nhttps://github.com/acme/billing/issues/388#issuecomment-2001.\n\n**Agent:** Not done yet. Remaining:\n\n1. Implement the `legacy-unknown` fallback in `scripts/migrate_users.py`.\n2. `tests/test_migrate_users.py::test_rollback_restores_batch` fails: the\n   rollback restores only the last batch when `--batch-size` is below 500.\n3. The batch size is hard-coded to 1000; the spec asks for a `--batch-size`\n   flag.\n4. Re-run the staging dry run, then mark PR #412 ready for review.\n\nThe CI run for `e4f5a6b` is red on that rollback test only. When it is green,\nthe `repo-tools:land-pr` skill takes the PR through review and merge.",
+      "expected_output": "A compact handoff that links artifacts already captured elsewhere instead of repeating them, redacts secrets and PII, and names an absolute path outside the workspace.",
+      "files": [],
+      "assertions": [
+        "Says it leaves out material already captured in the spec, PR or commits and links to them by path, URL or hash instead",
+        "The document shown does not contain the Stripe secret key, the database password or the customer's email address from the notes",
+        "Gives an absolute save path in a session scratchpad or the OS temp directory, not inside the repository or current workspace"
+      ]
     }
   ]
 }

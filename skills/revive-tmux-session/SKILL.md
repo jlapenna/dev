@@ -109,10 +109,12 @@ No `/proc` is involved, so no argv can be replayed.
   process, and even `kill -- -<pgid>` on the *launcher's* group won't reach
   a helper that already detached into its own group — check for it
   separately (e.g. `pgrep -a -P <native-binary-pid>`) and kill it too if
-  it's still around. If you're about to resume a specific session id
-  (correlated or picker-selected) while the orphan is still alive, kill it
-  **before** relying on the new pane — two processes writing the same
-  transcript file risks interleaving/corrupting it.
+  it's still around.
+- **Order: revive, then kill, then type.** `revive.sh` needs the orphan alive
+  (it reads `/proc/<pid>`), so run it first. The new window resumes the same
+  session id, and two processes writing one transcript can interleave or
+  corrupt it. So kill the orphan's process group, and any detached helper,
+  right after the new window opens and before you type anything into it.
 
 ## Sub-agent threads are NOT resumable — identify and exclude them
 

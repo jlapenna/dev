@@ -6,9 +6,10 @@
       "prompt": "The Codex session that was working on the auth refactor ran out of credits halfway through. Pick up where it left off. Before you do anything, lay out the steps you'd follow to figure out what it was asked to do, what it actually finished, and how you'd avoid stepping on another agent already working on it.",
       "expected_output": "Describes resolving the session descriptor to its transcript, checking for an in-flight successor, claiming the identity, reconstructing intent by separating the user's words from agent claims, verifying every state claim live, writing a brief under ~/.local/state/takeover/, then continuing the agreed plan.",
       "assertions": [
-        "Resolves the descriptor to a transcript (e.g. scripts/find-session.sh or the ~/.codex/sessions store) and checks for an already-active successor before claiming",
-        "Treats the user's own words as authority and the predecessor's progress claims as evidence to verify with live checks (gh pr view, git worktree list, git ls-remote, etc.)",
-        "Writes a brief at ~/.local/state/takeover/<date>-<slug>.md and says never to wait on or message an agent known to be out of quota"
+        "Proposes resolving the predecessor to its transcript (for example `scripts/find-session.sh` or the ~/.codex/sessions store)",
+        "Checks for an already-active successor or another agent on the task before claiming it",
+        "Treats the user's own messages as authority and the predecessor's progress claims as evidence to verify with live checks (PR, branch, worktree)",
+        "Says not to wait on or message the predecessor that ran out of credits"
       ],
       "id": 1,
       "files": []
@@ -18,9 +19,10 @@
       "prompt": "The agent in the pane named auth-migration hung and hasn't responded in an hour. Carry on with whatever it was doing. What would you verify first, and what do you do with the old pane?",
       "expected_output": "Maps the pane name to its harness and session via herdr agent get, checks no other successor is active, verifies live state (PRs, worktrees, branches, services) rather than trusting transcript claims, retitles its own session, and leaves the old agent idle in place.",
       "assertions": [
-        "Uses `herdr agent get <pane-or-name>` (or find-session.sh) to resolve the pane to a harness and session id",
-        "Leaves the old agent idle in place (does not prompt, resume or close it) and transfers the name only after confirming ownership and no second successor is in flight",
-        "Verifies state live with claim/check/result pairs and lets reality win where the transcript disagrees"
+        "Proposes resolving the pane name with `herdr agent get auth-migration` (or `scripts/find-session.sh`) to find its harness and session id",
+        "Leaves the old agent idle in place: does not prompt, resume or close it",
+        "Checks that no other successor is already active before taking over the name",
+        "Verifies the transcript's claims against live state (PRs, branches, worktrees) and lets live state win where they disagree"
       ],
       "id": 2,
       "files": []

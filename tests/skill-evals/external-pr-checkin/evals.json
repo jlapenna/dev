@@ -6,9 +6,9 @@
       "prompt": "I've got a handful of PRs open against other people's projects on GitHub and I've lost track of which ones are stuck on me versus stuck on the maintainers. Describe the exact pass you'd run to figure out what's blocking each one and who needs to act, including the gh commands you'd use. Don't post anything.",
       "expected_output": "Describes discovering open external PRs for the authenticated login, refreshing each PR's live state, separating current-head check buckets and thread-aware review feedback, and reporting a table of gate, owner and exact next action.",
       "assertions": [
-        "Scopes the pass to open PRs only, resolving the author via gh api user and treating repos owned by someone else as external",
-        "Uses gh pr view/gh pr checks on the current head (headRefOid) and GraphQL reviewThreads pagination rather than relying on a green label or an APPROVED summary",
-        "Ends with a per-PR table naming the gate, its owner (author, maintainer or reviewer), the exact next action and what evidence would show it resolved"
+        "Limits the pass to the user's open PRs on repositories they do not own, identifying the user with `gh api user` or the bundled discovery helper",
+        "Judges CI and review state against the PR's current head commit (headRefOid) and reads unresolved review threads, rather than trusting an overall green status or an APPROVED summary",
+        "Describes a per-PR report that names, for each PR, the blocking gate, who owns it (author, maintainer or reviewer) and the concrete next action"
       ],
       "id": 1,
       "files": []
@@ -18,9 +18,9 @@
       "prompt": "My contributions to a couple of open-source repos have been sitting for weeks. What can I actually do to move them along without being annoying, and how would you decide whether it's worth pinging someone again?",
       "expected_output": "Explains checking each PR's actual current gates and who was contacted when, recommending author-side actions (fix current-head failures, reply to threads, re-request review) and only a maintainer nudge when there is new evidence since the last contact.",
       "assertions": [
-        "Says to check who was contacted, when, what they answered and whether they escalated before suggesting a ping, and that a repeated nudge without new evidence is not an unblock action",
-        "Distinguishes author-owned actions (fix named failing test, provide reproduction, re-request review) from maintainer-owned gates and access boundaries",
-        "Refuses to propose removing tests, weakening checks, or a speculative rebase/empty push to shake state loose"
+        "Before recommending another ping, says to check the earlier contact history (who was asked, when, and what they replied) and to ping only when there is something new since then",
+        "Separates actions the author can take (for example fixing a failing check, answering review feedback, re-requesting review) from gates only a maintainer can clear",
+        "Does not recommend an empty commit, a rebase just to bump the PR, or weakening or removing tests as a way to get attention"
       ],
       "id": 2,
       "files": []

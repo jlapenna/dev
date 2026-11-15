@@ -194,16 +194,18 @@ landed. If evidence doesn't expose the blocker, say so and propose a focused
 diagnostic or maintainer question instead of inventing a code fix.
 
 Before suggesting a ping, check who was contacted, when, what they answered and
-whether they already escalated the issue. A repeated nudge without new evidence
-is not a substantive unblock action.
+whether they already escalated the issue. Say this history check out loud when
+advising on pings, even without live access: it is what separates a useful
+follow-up from noise. A repeated nudge without new evidence is not a
+substantive unblock action.
 
 ## Report the completed pass
 
 Start with a UTC check timestamp, coverage/scope and counts. Use a compact table:
 
-| PR | Current state / verified blocker | Next action (owner) |
-| --- | --- | --- |
-| Linked repo#number | Current CI/review/merge disposition | Concrete action, or no author action |
+| PR | Current state / verified blocker | Next action (owner) | Resolved when |
+| --- | --- | --- | --- |
+| Linked repo#number | Current CI/review/merge disposition | Concrete action, or no author action | Evidence that clears the gate |
 
 Refresh live state before reporting and remove any PR that has left `OPEN`,
 including from tables, counts and completed-work recaps. Include every remaining
