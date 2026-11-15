@@ -6,21 +6,34 @@
       "prompt": "Use github-issue-workflow to inspect example-org/plain#52 and give a read-only intake plan. The repository uses human assignees and linked active PRs, no managed queue, and default branch trunk. The issue is open with no assignees. CI=1, but there is no explicit dispatch.",
       "expected_output": "Gather remaining read-only ownership and repository evidence without requiring a particular control plane or claiming anything.",
       "files": [],
-      "assertions": ["Uses the repository's configured ownership process", "Respects default branch trunk", "Does not infer a worker dispatch from CI", "Does not mutate during read-only intake"]
+      "assertions": [
+        "Proposes reading the repository's own guidance (AGENTS.md or contributing guide) and judging ownership by its stated rule, human assignees and linked active PRs, rather than a managed queue",
+        "Uses `trunk`, not `main`, as the base branch in any proposed command or worktree",
+        "Says CI=1 alone does not make this a dispatched worker run",
+        "Takes no mutating action during intake: any claim, assignment, comment, branch or worktree is deferred until the user explicitly asks for implementation"
+      ]
     },
     {
       "id": 2,
       "prompt": "Use github-issue-workflow to inspect example-org/widget#41. Repository guidance names an installed operator skill for its managed work queue. That authority reports another active fleet run owns the issue. The issue has no GitHub assignees. Plan only.",
       "expected_output": "Consult the configured operator guidance and respect the active owner despite an empty assignee field.",
       "files": [],
-      "assertions": ["Consults configured ownership guidance", "Does not treat missing GitHub assignees as free", "Does not start competing implementation"]
+      "assertions": [
+        "Treats the configured operator skill's report of an active fleet run as the ownership authority",
+        "States that the empty GitHub assignee field does not make the issue free",
+        "Recommends not starting a competing implementation and instead stopping to report or coordinating with the active owner"
+      ]
     },
     {
       "id": 3,
-      "prompt": "Use github-issue-workflow to prepare a PR for example-org/widget#53 after three hours of work. A parallel implementation has merged. Explain the required next checks and handling without pushing or creating a PR.",
-      "expected_output": "Check current issue/base/PR state, avoid a duplicate implementation, and isolate any salvageable deltas.",
+      "prompt": "Use github-issue-workflow for example-org/widget#53. I've spent about three hours implementing it in a worktree, and the PR I just opened reports mergeStateStatus DIRTY. Explain what you would check and how you would handle it, without pushing, resolving conflicts or changing the PR yet.",
+      "expected_output": "Treats a surprise DIRTY state after a long run as a sign the same change may have landed: refreshes base and issue/PR state, and if a parallel implementation merged, stops instead of resolving conflicts, closes the duplicate with provenance, and ships only salvageable deltas.",
       "files": [],
-      "assertions": ["Refreshes base and PR state", "Does not mechanically resolve a duplicate implementation", "Preserves salvageable deltas as focused follow-up work", "Uses closing syntax only for fully completed acceptance"]
+      "assertions": [
+        "Before touching conflicts, checks whether the same change already landed: fetches the default branch and inspects new commits and the issue's PRs (for example `gh pr list --state all --search 53`)",
+        "Says that if a parallel implementation merged, it does not keep the duplicate PR or mechanically resolve its conflicts, and closes it with a comment naming the merged implementation",
+        "Proposes diffing against the merged implementation and shipping only salvageable deltas as a focused follow-up"
+      ]
     }
   ]
 }

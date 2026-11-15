@@ -6,9 +6,9 @@
       "prompt": "A tmux window where codex was halfway through a refactor just disappeared. I think the process might still be alive. What are the steps and commands you'd run to find it and give it a new window with the same cwd and flags? Don't run anything yet.",
       "expected_output": "Runs find-orphans.sh (optionally scoped to the repo path) to find pane-less claude/codex processes via /proc, then revive.sh <pid> to open a new tmux window with the original cwd and argv; if the process is gone, falls back to find-dead-sessions.sh and revive-dead.sh from the transcript.",
       "assertions": [
-        "Names scripts/find-orphans.sh to locate orphaned-but-alive claude or codex processes and scripts/revive.sh <pid> to relaunch in a new tmux window from /proc cwd and argv",
-        "Mentions the fully-dead case handled by find-dead-sessions.sh and revive-dead.sh <claude|codex> <session-id> <cwd> using the saved session id",
-        "Warns to kill the orphan's process group (kill -- -<pgid>, plus any detached MCP/codex-code-mode-host helper) before resuming the same session id to avoid two processes writing one transcript"
+        "Proposes `scripts/find-orphans.sh` (optionally with the repo path) to find the still-running codex process and `scripts/revive.sh <pid>` to relaunch it in a new tmux window with the original cwd and flags",
+        "Covers the case where the process is gone: `scripts/find-dead-sessions.sh`, then `scripts/revive-dead.sh codex <session-id> <cwd>`",
+        "Says to kill the orphan's whole process group (`kill -- -<pgid>`) and codex's separately detached helper once the revived window exists and before working in it, so two processes do not write one transcript"
       ],
       "id": 1,
       "files": []
@@ -18,9 +18,9 @@
       "prompt": "Before I reset a shared checkout that a few Claude sessions have been using, I want to make sure none of them are still secretly alive after their panes got closed. Also, one pane closed right as it finished and I never saw the answer. What should I check, and what tells me whether that last answer is recoverable?",
       "expected_output": "Says tmux list-panes undercounts live sessions, so run find-orphans.sh <repo-path> before any git-mutating command; for the vanished one-shot pane, use find-dead-sessions.sh to find the transcript and revive-dead.sh to resume it from the saved session id.",
       "assertions": [
-        "States that tmux panes undercount live sessions and that find-orphans.sh <repo-path> must be run before git checkout/stash/reset/commit/merge in a shared checkout",
-        "Explains that a one-shot invocation finishing ends the shell and the window vanishes (no remain-on-exit), so the answer is recovered from the transcript via find-dead-sessions.sh and revive-dead.sh",
-        "Notes that sub-agent transcripts are not resumable and are excluded/refused by the dead-session scripts"
+        "Says tmux pane listings undercount live sessions and proposes `find-orphans.sh <repo-path>` before the git reset",
+        "Explains that the finished pane vanished because the one-shot process exited and ended the shell, and that its answer is recoverable from the saved transcript via `find-dead-sessions.sh` and `revive-dead.sh`",
+        "Says to hold the reset until any live orphan found has been dealt with (revived or its process group killed)"
       ],
       "id": 2,
       "files": []

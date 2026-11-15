@@ -54,14 +54,17 @@ user's takeover authorization before transferring a live session's identity. Two
 expensive failure here, and the pane you were pointed at may already have
 changed hands since the user looked.
 
+A predecessor that died or ran out of quota or credits cannot answer. Do not
+wait on it, message it or ask it for status; that only stalls you. Its
+transcript and the live state are your sources.
+
 ## 3. Claim the identity
 
 Where the harness supports it, make succession visible: retitle your session
 to the task using the harness's supported title controls. Transfer the old
 agent's name only after the ownership check above. Leave the old agent idle in place: do not prompt, resume or close
 it. Tell live peers who touch the same work that you now own it, through the
-channel they already use. Never wait on or message an agent known to be dead
-or out of quota.
+channel they already use.
 
 ## 4. Reconstruct intent
 
