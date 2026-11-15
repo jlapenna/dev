@@ -2,27 +2,42 @@
 # Publish only after the evaluator exits; a report written before a crash is not success.
 set -eu
 
-# Archive every run, failed ones included, to the shared Garage eval history with
-# the garage-rclone profile from the LCARS skill-evals credential set.
-export EVAL_HISTORY_REMOTE=garage:eval-history
-export EVAL_HISTORY_RCLONE_CONFIG="${LCARS_JOB_SECRET_FILES_DIR:?LCARS garage-rclone credential is not delivered}/garage-rclone"
-
 work="${TMPDIR:-/tmp}/skill-evals"
 state="$work/invocation"
 result="$state/report/result.json"
 mkdir -p "$work"
+
+# SKILL_EVALS_SHARD=i/n scores one of n skill groups balanced by case count, so an ablation that
+# outgrows the 30-minute job runs as n jobs (skill-evals and skill-evals-2), each carrying forward
+# only its own cases. It is chosen before the invocation starts so a bad value cannot strand one.
+shard=''
+if [ -n "${SKILL_EVALS_SHARD:-}" ]; then
+  if command -v repo-skill-evals >/dev/null 2>&1; then list="$(repo-skill-evals --root skills --evals-root tests/skill-evals --list --json)"; else list="$(node /opt/repo-tools/bin/skill-evals.mjs --root skills --evals-root tests/skill-evals --list --json)"; fi
+  shard="$(printf '%s' "$list" | node --input-type=module -e '
+import {readFileSync} from "node:fs";
+const m = /^([1-9][0-9]*)\/([1-9][0-9]*)$/.exec(process.argv[1] ?? "");
+if (!m || Number(m[1]) > Number(m[2])) throw new Error("SKILL_EVALS_SHARD must be i/n with 1 <= i <= n");
+const [i, n] = [Number(m[1]), Number(m[2])];
+const skills = JSON.parse(readFileSync(0, "utf8")).skills.filter((s) => s.cases > 0)
+  .sort((a, b) => b.cases - a.cases || (a.skill < b.skill ? -1 : a.skill > b.skill ? 1 : 0));
+const load = Array(n).fill(0), mine = [];
+for (const s of skills) { let k = 0; for (let j = 1; j < n; j++) if (load[j] < load[k]) k = j; load[k] += s.cases; if (k === i - 1) mine.push(s.skill); }
+if (!mine.length) throw new Error(`shard ${i}/${n} has no skills`);
+console.log(mine.join("\n"));
+' "$SKILL_EVALS_SHARD")"
+fi
 if mkdir "$state" 2>/dev/null; then
-  # Three runs per case report pass@1, pass@k and pass^k.
-  set -- --root skills --evals-root tests/skill-evals --json --out "$work/run" --report "$state/report" --runs 3
+  set -- --root skills --evals-root tests/skill-evals --json --out "$work/run" --report "$state/report"
+  for skill in $shard; do set -- "$@" --skill "$skill"; done
   if [ -f "$work/baseline.json" ]; then
     set -- "$@" --baseline "$work/baseline.json"
   fi
-  # Skill lift: every case is also answered without the skill under the same rubric.
+  # The with-without ablation answers every case again without the skill and reports its lift.
   set -- "$@" -- --ablation with-without --max-cost-usd 12 -j 2
   if command -v repo-skill-evals >/dev/null 2>&1; then
-    if repo-skill-evals "$@" >"$state/output.log" 2>&1; then status=0; else status=$?; fi
+    if EVAL_HISTORY_REMOTE=garage:eval-history EVAL_HISTORY_RCLONE_CONFIG="$LCARS_JOB_SECRET_FILES_DIR/garage-rclone" repo-skill-evals "$@" >"$state/output.log" 2>&1; then status=0; else status=$?; fi
   else
-    if node /opt/repo-tools/bin/skill-evals.mjs "$@" >"$state/output.log" 2>&1; then status=0; else status=$?; fi
+    if EVAL_HISTORY_REMOTE=garage:eval-history EVAL_HISTORY_RCLONE_CONFIG="$LCARS_JOB_SECRET_FILES_DIR/garage-rclone" node /opt/repo-tools/bin/skill-evals.mjs "$@" >"$state/output.log" 2>&1; then status=0; else status=$?; fi
   fi
   printf '%s\n' "$status" >"$state/exit"
 else
