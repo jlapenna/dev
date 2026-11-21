@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # Fork the calling Antigravity, Claude Code, Codex or OpenCode session into a
-# new herdr pane (right) or tab. Backs each agent's fork-pane and fork-tab entry
-# points.
+# new pane (Herdr) or terminal (herdr-core), or close the calling one.
+# Backs each agent's fork-pane and fork-tab entry points.
 #
 # Usage: agent-fork pane|tab ["short title"] [<<<"fork task"]
 #        agent-fork exit
 #   The optional title names the fork's task. A fork inherits its parent's
-#   session title, so the title is applied with the agent's own /rename and
-#   becomes the herdr agent name; pane and tab labels follow the session title.
+#   session title, so on Herdr the title is applied with the agent's own
+#   /rename and becomes the herdr agent name; pane and tab labels follow the
+#   session title. On herdr-core the title becomes the new terminal's name
+#   (herdr-core has no agent registry to rename).
 #   The optional fork task is read from stdin, so any text survives quoting.
-#   The agent kind and session id come from herdr's record of the calling pane.
+#   On Herdr the agent kind and session id come from herdr's record of the
+#   calling pane; on herdr-core they come from the live terminal and the
+#   agent's own on-disk session records.
 #   exit ends the calling session once its current turn finishes: the agent
 #   gets /exit and its pane closes. Use it after a delegated worker reports
 #   successfully to its parent, or when the user explicitly asks to close.
@@ -22,8 +26,32 @@ case "$where" in pane | tab | exit) ;; *)
   ;;
 esac
 
+# Backend: herdr-core (`hc`, sets HC_TERMINAL_ID) when present, else the older
+# Herdr multiplexer (sets HERDR_ENV=1). One live stack at a time; hc wins.
+backend=""
+if [ -n "${HC_TERMINAL_ID:-}" ]; then backend=hc
+elif [ "${HERDR_ENV:-}" = 1 ]; then backend=herdr
+fi
+
 if [ "$where" = exit ]; then
-  test "${HERDR_ENV:-}" = 1 || { echo "ERROR: not running inside a herdr pane" >&2; exit 1; }
+  test -n "$backend" || { echo "ERROR: not running inside a herdr terminal" >&2; exit 1; }
+  if [ "$backend" = hc ]; then
+    self=$(hc get "$HC_TERMINAL_ID" --json | jq -er '.address')
+    # Detached so it outlives this tool call. It waits for the turn (and its
+    # final report) to finish, and stands down if the session is busy again.
+    setsid -f bash -c '
+      term=$1 delay=$2
+      hc wait "$term" --timeout 1800 >/dev/null || exit
+      sleep "$delay"
+      case $(hc get "$term" --json | jq -r ".status // \"\"") in
+        "" | idle | done) ;;
+        *) exit ;;
+      esac
+      hc send "$term" /exit >/dev/null
+    ' agent-exit "$self" "${AGENT_EXIT_DELAY:-3}" </dev/null >/dev/null 2>&1
+    echo "This session exits and terminal $self closes once the current turn ends."
+    exit 0
+  fi
   self=$(herdr pane get "$HERDR_PANE_ID" | jq -er '.result.pane.pane_id')
   # Detached so it outlives this tool call. It waits for the turn (and its
   # final report) to finish, and stands down if the session is busy again.
@@ -40,62 +68,165 @@ if [ "$where" = exit ]; then
   echo "This session exits and pane $self closes once the current turn ends."
   exit 0
 fi
+test -n "$backend" || { echo "ERROR: not running inside a herdr terminal" >&2; exit 1; }
 title=$(printf '%s' "${2:-}" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//')
-test "${HERDR_ENV:-}" = 1 || { echo "ERROR: not running inside a herdr pane" >&2; exit 1; }
 
 task=""
 [ -t 0 ] || task=$(cat)
 [ -n "${task//[[:space:]]/}" ] ||
   task="The user has not given you a task yet. Acknowledge briefly that you understand, then wait for instructions."
 
-# Resolve inherited caller context before using workspace-qualified IDs: a
-# workspace move changes the live pane ID without changing the shell environment.
-caller=$(herdr pane get "$HERDR_PANE_ID")
-kind=$(jq -r '.result.pane | .agent // .agent_session.agent // empty' <<<"$caller")
-sid=$(jq -r '.result.pane.agent_session.value // empty' <<<"$caller")
-source_pane=$(jq -er '.result.pane.pane_id' <<<"$caller")
-workspace=$(jq -er '.result.pane.workspace_id' <<<"$caller")
-{ test -n "${sid:-}" && test "$sid" != null; } ||
-  { echo "ERROR: could not resolve the session id for pane $HERDR_PANE_ID (a new session may need one exchange first)" >&2; exit 1; }
+# The agent's session records are written after its terminal starts, so a
+# session this fresh belongs to this terminal.
+FRESH_SLACK=5000
+
+case "$backend" in
+  hc)
+    me=$(hc get "$HC_TERMINAL_ID" --json)
+    fg=$(jq -r '.foreground.name // .foreground.argv[0] // empty' <<<"$me")
+    fg=${fg##*/}
+    case "$fg" in
+      agy | antigravity) kind=agy ;;
+      claude) kind=claude ;;
+      codex) kind=codex ;;
+      opencode) kind=opencode ;;
+      *)
+        echo "ERROR: no supported coding agent detected in terminal $HC_TERMINAL_ID (foreground is '${fg:-nothing}')" >&2
+        exit 1
+        ;;
+    esac
+    cwd=$(jq -er '.cwd' <<<"$me")
+    fg_pid=$(jq -r '.foreground.pid // empty' <<<"$me")
+    term_created=$(jq -er '.created_ms' <<<"$me")
+    since=$((term_created - FRESH_SLACK))
+    sid=""
+    case "$kind" in
+      opencode)
+        # opencode records sessions in one SQLite database; the newest one
+        # created after this terminal started is this session.
+        db=$HOME/.local/share/opencode/opencode.db
+        if [ -f "$db" ]; then
+          sid=$(sqlite3 "file:$db?mode=ro" \
+            "select id from session where time_created >= $since order by time_created desc limit 1" 2>/dev/null || true)
+        fi
+        ;;
+      codex)
+        # Each codex rollout file names its session id and records its start
+        # time and cwd in the first line.
+        newest=0
+        while IFS= read -r f; do
+          meta=$(head -n 1 "$f" | jq -r 'select(.type == "session_meta") | .payload // {} | [.id // "", .cwd // ""] | @tsv' 2>/dev/null || true)
+          fsid=${meta%%$'\t'*}
+          fcwd=${meta#*$'\t'}
+          [ -n "$fsid" ] && [ "$fcwd" = "$cwd" ] || continue
+          fstart=$(date -d "${f#*rollout-}" +%s%N 2>/dev/null | cut -c1-13 || true)
+          fstart=${fstart%%[!0-9]*}
+          case "$fstart" in '' | *[!0-9]*) fstart=$(stat -c %Y "$f")000 ;; esac
+          [ "$fstart" -ge "$since" ] && [ "$fstart" -gt "$newest" ] || continue
+          newest=$fstart
+          sid=$fsid
+        done < <(find "$HOME/.codex/sessions" -name 'rollout-*.jsonl' -newermt "@$((since / 1000 - 3600))" 2>/dev/null)
+        ;;
+      claude)
+        # Claude writes one transcript per session under a slug of the cwd;
+        # this session's file is the newest one in the window.
+        slug=$(printf '%s' "$cwd" | sed 's/[^A-Za-z0-9]/-/g')
+        newest=0
+        for f in "$HOME/.claude/projects/$slug"/*.jsonl; do
+          [ -e "$f" ] || continue
+          fm=$(stat -c %Y "$f")000
+          [ "$fm" -ge "$since" ] && [ "$fm" -gt "$newest" ] || continue
+          newest=$fm
+          sid=${f##*/}
+          sid=${sid%.jsonl}
+        done
+        ;;
+      agy)
+        # Antigravity keeps one SQLite database per conversation, named by its
+        # id and written while the conversation runs.
+        newest=0
+        for f in "$HOME/.gemini/antigravity-cli/conversations"/*.db; do
+          [ -e "$f" ] || continue
+          fm=$(stat -c %Y "$f")000
+          [ "$fm" -ge "$since" ] && [ "$fm" -gt "$newest" ] || continue
+          newest=$fm
+          sid=${f##*/}
+          sid=${sid%.db}
+        done
+        ;;
+    esac
+    { test -n "${sid:-}" && test "$sid" != null; } ||
+      { echo "ERROR: could not resolve the $kind session id for terminal $HC_TERMINAL_ID (a new session may need one exchange first)" >&2; exit 1; }
+    source_term=$HC_TERMINAL_ID
+    place=terminal
+    place_id=$source_term
+    ;;
+  herdr)
+    # Resolve inherited caller context before using workspace-qualified IDs: a
+    # workspace move changes the live pane ID without changing the shell environment.
+    caller=$(herdr pane get "$HERDR_PANE_ID")
+    kind=$(jq -r '.result.pane | .agent // .agent_session.agent // empty' <<<"$caller")
+    sid=$(jq -r '.result.pane.agent_session.value // empty' <<<"$caller")
+    source_pane=$(jq -er '.result.pane.pane_id' <<<"$caller")
+    workspace=$(jq -er '.result.pane.workspace_id' <<<"$caller")
+    { test -n "${sid:-}" && test "$sid" != null; } ||
+      { echo "ERROR: could not resolve the session id for pane $HERDR_PANE_ID (a new session may need one exchange first)" >&2; exit 1; }
+    source_term=$source_pane
+    place=pane
+    place_id=$source_pane
+    ;;
+esac
 
 # Nobody answers permission prompts in a background pane, so every fork skips
 # them; otherwise it blocks on its first tool call.
 case "$kind" in
   agy)
     label=Antigravity
+    bin=agy
     args=(--dangerously-skip-permissions --conversation "$sid")
     extra=""
+    task_arg=yes
     ;;
   claude)
     label=Claude
+    bin=claude
     args=(--dangerously-skip-permissions --resume "$sid" --fork-session)
     extra=""
+    task_arg=yes
     ;;
   codex)
     label=Codex
+    bin=codex
     args=(fork --dangerously-bypass-approvals-and-sandbox "$sid")
     extra=""
+    task_arg=yes
     ;;
   opencode)
     label=OpenCode
+    bin=opencode
     args=(--session "$sid" --fork --auto)
     extra=$'\n- Inspect the original session with: opencode export '"$sid"
+    task_arg=no  # opencode takes no positional task; its notice goes in with `hc send`
     ;;
   *)
-    echo "ERROR: unsupported agent kind '${kind:-unknown}' in pane $HERDR_PANE_ID (agy, claude, codex or opencode)" >&2
+    echo "ERROR: unsupported agent kind '${kind:-unknown}' (agy, claude, codex or opencode)" >&2
     exit 1
     ;;
 esac
 
-# Herdr agent names must match [a-z][a-z0-9_-]{0,31} and be unique among live
-# agents; a title becomes that slug, and a placeholder name is the fallback.
+# Names must match [a-z][a-z0-9_-]{0,31} and be unique among live agents
+# (herdr) or live terminal names (hc); a title becomes that slug.
 name="fork-$kind-$(date +%H%M%S)"
 if [ -n "$title" ]; then
   slug=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\{1,\}/-/g; s/^-*//; s/-*$//')
   case "$slug" in [a-z]*) ;; ?*) slug="fork-$slug" ;; esac
   slug=${slug:0:29}
   slug=${slug%-}
-  taken=$(herdr agent list | jq -r '.result.agents[].name // empty' || true)
+  if [ "$backend" = hc ]; then
+    taken=$(hc ls --json | jq -r '.terminals[].name // empty' 2>/dev/null || true)
+  else
+    taken=$(herdr agent list | jq -r '.result.agents[].name // empty' || true)
+  fi
   for candidate in "$slug" "$slug-2" "$slug-3"; do
     if [ -n "$slug" ] && ! grep -qxF -- "$candidate" <<<"$taken"; then
       name=$candidate
@@ -103,6 +234,89 @@ if [ -n "$title" ]; then
     fi
   done
 fi
+
+notice_for() {
+  cat <<EOF
+You are a fork of $label session $sid, created with fork-$where. Everything in your history above was copied from that original conversation, which continues separately in herdr $place $place_id. You are now the divergent branch:
+- Treat shared history as context, not live state; the original kept acting on the world after the copy point, so re-verify files, git state, and processes before relying on them.${extra}
+- Do not edit the original session; work only in this fork.
+$(
+  if [ -n "$title" ]; then
+    printf '%s\n' "- Your session title is \"$title\"."
+  elif [ "$backend" = hc ]; then
+    printf '%s\n' "- Your terminal is named \"${name}\" for your task. Tell the user; herdr-core terminals carry no separate session title."
+  else
+    printf '%s\n' '- Your session title is still the original'"'"'s. Retitle it to your task now: herdr agent prompt "$HERDR_PANE_ID" "/rename <title>".'
+  fi
+)
+- Leave user-facing sessions open for review and continuation unless the user explicitly asks to close them. Being a fork does not by itself make you a delegated worker.
+- If you are an agent-spawned worker doing delegated work, finish and verify the task, stop your background work and watchers, and clean up your task checkout. Before exiting, send your work summary, verification results and any remaining items to parent $label session $sid in herdr $place $place_id through its coordination channel. Verify the recipient is still that parent session and confirm successful delivery; a final reply in your own $place does not count. If the parent is unavailable or delivery fails or cannot be confirmed, stay open and report the blocker. Only after successful delivery, with nothing awaiting a result or an answer, run \`agent-fork exit\` as your last command, then give your final report. The worker exits and this $place closes after that turn. On herdr-core report with \`hc send $place_id\`.
+
+$task
+EOF
+}
+
+if [ "$backend" = hc ]; then
+  # herdr-core has no agent registry: the fork is a plain terminal running the
+  # agent's own fork command, with the task delivered as its first message.
+  # --outlive-parent keeps the fork alive when this session's terminal ends.
+  # The terminal env is the core's, not the caller's: pass the agent's own
+  # environment (direnv secrets included) through the API's env map. HC_*
+  # never crosses into the fork: its terminal address comes from its new
+  # terminal. terminal.run takes an env map the CLI does not expose, so the
+  # request goes over `hc connect`.
+  env_in=/dev/null
+  [ -n "${fg_pid:-}" ] && [ -r "/proc/$fg_pid/environ" ] && env_in=/proc/$fg_pid/environ
+  req=$(jq -Rsc --arg caller "$HC_TERMINAL_ID" --arg cwd "$cwd" \
+    '{jsonrpc: "2.0", id: 1, method: "terminal.run", params: {
+        name: "__NAME__", caller: $caller, cwd: $cwd, bg: true,
+        outlive_parent: true,
+        env: (reduce split("\u0000")[] as $kv ({};
+          if $kv == "" then .
+          elif ($kv | startswith("HC_")) then .
+          else . + {($kv | split("=") | first): ($kv | sub("^[^=]*="; ""))}
+          end))
+      }}' < "$env_in")
+  if [ "$task_arg" = yes ]; then
+    req=$(jq -c '.params.argv = $ARGS.positional' --args -- \
+      "$bin" "${args[@]}" "$(notice_for)" <<<"$req")
+  else
+    req=$(jq -c '.params.argv = $ARGS.positional' --args -- \
+      "$bin" "${args[@]}" <<<"$req")
+  fi
+  created=""
+  for candidate in "$name" "$name-2" "$name-3"; do
+    reply=$(printf '%s\n' "${req//'__NAME__'/"$candidate"}" |
+      timeout 15 hc connect --json 2>/dev/null) || reply=
+    reply=$(jq -Rs '[splits("\n")] | map(fromjson?) | map(select(has("result"))) |
+      first(.[] | .result) // empty' <<<"$reply") || reply=
+    if [ -n "$reply" ] && jq -e '.address' >/dev/null <<<"$reply"; then
+      name=$candidate
+      created=$reply
+      break
+    fi
+  done
+  [ -n "$created" ] ||
+    { echo "ERROR: hc run failed to start the fork" >&2; exit 1; }
+  term=$(jq -er '.address' <<<"$created")
+  if [ "$task_arg" != yes ] ||
+    [ "$(jq -r '.first_message.sent // false' <<<"$created")" != true ]; then
+    # A trust dialog or a slow start can drop the first message; read before
+    # deciding, then send once readiness is confirmed.
+    hc wait "$term" --timeout 60 >/dev/null || true
+    if hc read "$term" --lines 30 2>/dev/null | grep -qiE "trust this (folder|directory)"; then
+      hc keys "$term" down enter >/dev/null
+      hc wait "$term" --timeout 60 >/dev/null || true
+    fi
+    hc send "$term" "$(notice_for)" >/dev/null ||
+      { echo "ERROR: sending the fork notice failed; do not resend (terminal $term is left open for inspection)" >&2; exit 1; }
+  fi
+  echo "Forked $label session $sid into a new terminal ($term) named $name, in $cwd."
+  echo "The fork was told it is a fork and that the original continues in terminal $source_term."
+  echo "Focus stayed here."
+  exit 0
+fi
+
 if [ "$where" = pane ]; then
   pane=$(herdr pane split --pane "$source_pane" --direction right --cwd "$PWD" --no-focus | jq -r '.result.pane.pane_id')
 else
@@ -140,20 +354,9 @@ fi
 # apply /rename as a local command, without starting a model turn.
 if [ -n "$title" ]; then
   herdr agent prompt "$name" "/rename $title" >/dev/null || fail "setting the fork's title failed"
-  retitle="- Your session title is \"$title\"."
-else
-  retitle="- Your session title is still the original's. Retitle it to your task now: herdr agent prompt \"\$HERDR_PANE_ID\" \"/rename <title>\"."
 fi
 
-notice="You are a fork of $label session $sid, created with fork-$where. Everything in your history above was copied from that original conversation, which continues separately in herdr pane $source_pane. You are now the divergent branch:
-- Treat shared history as context, not live state; the original kept acting on the world after the copy point, so re-verify files, git state, and processes before relying on them.${extra}
-- Do not edit the original session; work only in this fork.
-$retitle
-- Leave user-facing sessions open for review and continuation unless the user explicitly asks to close them. Being a fork does not by itself make you a delegated worker.
-- If you are an agent-spawned worker doing delegated work, finish and verify the task, stop your background work and watchers, and clean up your task checkout. Before exiting, send your work summary, verification results and any remaining items to parent $label session $sid in herdr pane $source_pane through its coordination channel. Verify the recipient is still that parent session and confirm successful delivery; a final reply in your own pane does not count. If the parent is unavailable or delivery fails or cannot be confirmed, stay open and report the blocker. Only after successful delivery, with nothing awaiting a result or an answer, run \`agent-fork exit\` as your last command, then give your final report. The worker exits and this $where closes after that turn.
-
-$task"
-herdr agent prompt "$name" "$notice" >/dev/null || fail "submitting the fork notice failed; do not resend"
+herdr agent prompt "$name" "$(notice_for "$name")" >/dev/null || fail "submitting the fork notice failed; do not resend"
 
 echo "Forked $label session $sid into a new $where (pane $pane) as herdr agent $name, in $PWD."
 echo "The fork was told it is a fork and that the original continues in pane $source_pane."

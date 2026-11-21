@@ -23,8 +23,11 @@ model recipes, and deployment procedures belong to the consuming environment.
 
 The fork skills use [bin/agent-fork](bin/agent-fork). Put `bin` on your `PATH`,
 or install that executable into a directory already on it. It requires Bash,
-`jq`, Herdr, and the corresponding Claude Code, Codex, or OpenCode executable.
-Run it from an existing Herdr coding-agent pane:
+`jq`, and the corresponding Claude Code, Codex, or OpenCode executable. On the
+older Herdr multiplexer it also requires `herdr`; inside a herdr-core terminal
+(`hc`, `HC_TERMINAL_ID` set) it uses `hc` and resolves the session from the
+agent's own session records. Run it from an existing coding-agent pane or
+terminal:
 
 ```bash
 agent-fork tab 'Investigate cache misses' <<'TASK'
