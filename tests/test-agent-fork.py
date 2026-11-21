@@ -31,13 +31,15 @@ elif args[:2] not in [['agent', 'start'], ['agent', 'prompt'], ['agent', 'wait']
 '''
 
 def run(topology, inherited, missing=False, title=None, taken=None, kind=None,
-        status=None):
+        status=None, session_ids=()):
     with tempfile.TemporaryDirectory(prefix='agent-fork-fixture-') as d:
         d = Path(d)
         mock = d / 'herdr'
         mock.write_text(MOCK)
         mock.chmod(0o700)
         pane = {'result': {'pane': dict(PANE)}}
+        if session_ids:
+            pane['result']['pane']['agent_session']['value'] = 'ses_parent'
         if kind:
             pane['result']['pane']['agent'] = kind
             pane['result']['pane']['agent_session']['agent'] = kind
@@ -58,6 +60,7 @@ def run(topology, inherited, missing=False, title=None, taken=None, kind=None,
                    PANE_FIXTURE=str(fixture), CALL_LOG=str(log),
                    AGENT_EXIT_DELAY='0')
         argv = ['bash', str(SCRIPT), topology] + ([title] if title is not None else [])
+        argv.extend(session_ids)
         result = subprocess.run(argv, env=env,
                                 input='Debug task\n', text=True, capture_output=True,
                                 timeout=5)
@@ -353,3 +356,16 @@ assert ['send', 't99', '/exit'] not in calls, calls
 print('PASS: hc exit stands down when the session is busy again')
 
 print('ALL hc BACKEND TESTS PASSED')
+
+for topology in ('opencode-pane', 'opencode-tab'):
+    result, calls = run(topology, 'wE:p7', title='Child', kind='opencode',
+                        session_ids=('ses_parent', 'ses_child'))
+    assert result.returncode == 0, result.stderr
+    start = next(c for c in calls if c[:2] == ['agent', 'start'])
+    assert start[-3:] == ['--session', 'ses_child', '--auto'], start
+    assert all(c[2] != 'wE:p7' for c in calls if c[:2] == ['agent', 'prompt'])
+for ids in [('ses_parent', 'ses_parent'), ('ses_other', 'ses_child')]:
+    result, calls = run('opencode-pane', 'wE:p7', title='Child', kind='opencode',
+                        session_ids=ids)
+    assert result.returncode != 0 and not any(c[:2] == ['pane', 'split'] for c in calls)
+print('PASS: API-created OpenCode forks open the exact child and reject parent mismatches')

@@ -4,6 +4,7 @@
 # Backs each agent's fork-pane and fork-tab entry points.
 #
 # Usage: agent-fork pane|tab ["short title"] [<<<"fork task"]
+#        agent-fork opencode-pane|opencode-tab "title" parent-session fork-session
 #        agent-fork exit
 #   The optional title names the fork's task. A fork inherits its parent's
 #   session title, so on Herdr the title is applied with the agent's own
@@ -20,7 +21,20 @@
 set -euo pipefail
 
 where=${1:-}
-case "$where" in pane | tab | exit) ;; *)
+# The OpenCode command hook creates its fork through the session API before
+# opening a terminal. Use that exact child even if another session opens.
+fork_sid=""
+case "$where" in
+  opencode-pane | opencode-tab)
+    parent_sid=${3:-}
+    fork_sid=${4:-}
+    if ! [[ "$parent_sid" =~ ^ses_[a-zA-Z0-9]+$ && "$fork_sid" =~ ^ses_[a-zA-Z0-9]+$ && "$fork_sid" != "$parent_sid" ]]; then
+      echo "ERROR: expected distinct OpenCode parent and fork session IDs" >&2
+      exit 2
+    fi
+    where=${where#opencode-}
+    ;;
+  pane | tab | exit) ;; *)
   echo "usage: agent-fork pane|tab [title]  (fork task on stdin) | agent-fork exit" >&2
   exit 2
   ;;
@@ -105,7 +119,9 @@ case "$backend" in
         # opencode records sessions in one SQLite database; the newest one
         # created after this terminal started is this session.
         db=$HOME/.local/share/opencode/opencode.db
-        if [ -f "$db" ]; then
+        if [ -n "$fork_sid" ]; then
+          sid=$parent_sid
+        elif [ -f "$db" ]; then
           sid=$(sqlite3 "file:$db?mode=ro" \
             "select id from session where time_created >= $since order by time_created desc limit 1" 2>/dev/null || true)
         fi
@@ -177,6 +193,11 @@ case "$backend" in
     ;;
 esac
 
+if [ -n "$fork_sid" ] && { [ "$kind" != opencode ] || [ "$sid" != "$parent_sid" ]; }; then
+  echo "ERROR: calling terminal does not match the OpenCode parent session" >&2
+  exit 1
+fi
+
 # Nobody answers permission prompts in a background pane, so every fork skips
 # them; otherwise it blocks on its first tool call.
 case "$kind" in
@@ -204,7 +225,11 @@ case "$kind" in
   opencode)
     label=OpenCode
     bin=opencode
-    args=(--session "$sid" --fork --auto)
+    if [ -n "$fork_sid" ]; then
+      args=(--session "$fork_sid" --auto)
+    else
+      args=(--session "$sid" --fork --auto)
+    fi
     extra=$'\n- Inspect the original session with: opencode export '"$sid"
     task_arg=no  # opencode takes no positional task; its notice goes in with `hc send`
     ;;
