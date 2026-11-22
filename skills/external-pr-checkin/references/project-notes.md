@@ -56,6 +56,11 @@ Checked 2026-11-14. Documents: `CONTRIBUTING.md`, `AGENTS.md`,
   non-trivial work needs an issue first.
 - `clawsweeper:intake:*` labels are a preliminary classification and ask
   nothing of the author.
+- **Barnacle stale close** (checked 2026-11-22, `scripts/github/stale-lifecycle.mjs`,
+  `barnacle-state.mjs`). An unassigned PR is marked stale after 7 days without
+  human activity and may close 7 days later. Any non-bot comment, review or
+  edit counts, including the author's, as does a new head. A short factual
+  status comment is the author-side reset; a maintainer can add `no-stale`.
 - Observed: recent fork merges were small, carried a current-head bot verdict
   with sufficient proof, and landed within hours.
 
@@ -102,6 +107,9 @@ Checked 2026-11-14. Documents: `CONTRIBUTING.md`, `MAINTAINERS.md`,
 - Keep the description's Bug fix verification citing the current head.
 - Observed: outside contributors' PRs waited 15 to 52 days between approval
   and the QA pass, and author status comments did not shorten that.
+- Observed 2026-11-22: a `validated` PR is not always queued by the QA owner;
+  other validated fork PRs merged within a day, so a PR validated but not
+  queued after several days is worth one ask to the coordinating maintainer.
 
 ## BerriAI/litellm
 

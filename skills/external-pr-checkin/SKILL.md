@@ -1,16 +1,18 @@
 ---
 name: external-pr-checkin
-description: Check the authenticated user's open GitHub pull requests to external projects, summarize current CI, review and merge gates, compare each PR with its project's contribution model, and recommend specific actions and owners to unblock each PR. Use for requests such as "check my upstream PRs", "what is blocking my external PRs?", or "what can I do to move my contributions ahead?" When authorized, carry out author-side follow-ups (review re-requests, evidenced maintainer asks); code changes and merges go through separate delivery skills.
+description: Check the authenticated user's open GitHub pull requests to external projects, summarize current CI, review and merge gates, compare each PR with its project's contribution model, fix every author-side blocker during the pass (merge conflicts, failing checks, unresolved review findings, stale descriptions), then report what remains with its owner. Use for requests such as "check my upstream PRs", "what is blocking my external PRs?", or "what can I do to move my contributions ahead?" A pass that only reports an author-side blocker it could have fixed is incomplete.
 ---
 
 # External PR check-in
 
-Produce one evidence-backed pass over the user's open external PRs. Unless
+Produce one evidence-backed pass over the user's open external PRs that
+fixes what the author can fix and reports only what someone else owns. Unless
 the user supplies an explicit PR list or repository scope, discover the portfolio
 from GitHub rather than limiting it to PRs mentioned earlier in this chat.
 Use the installed `gh` CLI with its normal login; do not switch identities or
-read credentials. Do not create a clone. When configured hosts or existing worktrees are available, inspect their
-local branch evidence as described below.
+read credentials. Discovery and inspection are read-only; fixes happen in
+"Fix author-side blockers" below. When configured hosts or existing worktrees
+are available, inspect their local branch evidence as described below.
 
 ## Scope and discovery
 
@@ -166,7 +168,8 @@ repository when the environment allows it, then verify each finding you act on.
 
 For each blocked PR, explain **the gate, who owns it, the exact next action,
 and what evidence would show it resolved**. Author-side actions belong to the
-agent when authorized: do them during the pass (see "Act on author-side actions").
+agent: do them during the pass (see "Fix author-side blockers") and report them
+as done, not as recommendations.
 Before calling something an author action, confirm the agent can actually do
 it. An access boundary, such as test infrastructure only maintainers can reach,
 makes it a maintainer handoff. Before calling a gate maintainer-owned, confirm
@@ -188,9 +191,10 @@ open to a contributor who asks for access. Examples of useful recommendations:
   replies, not a guessed GitHub handle.
 
 Do not remove tests, weaken checks, bypass protection or dismiss reviews merely
-to get green. Recommend a rebase only for a verified conflict/up-to-date rule or
-explicit reviewer request, after checking whether an equivalent fix already
-landed. If evidence doesn't expose the blocker, say so and propose a focused
+to get green. Integrate the base branch only for a verified conflict, an
+up-to-date rule, a named failing gate caused by drift or an explicit reviewer
+request, after checking whether an equivalent fix already landed; never as a
+speculative push to shake a gate loose. If evidence doesn't expose the blocker, say so and propose a focused
 diagnostic or maintainer question instead of inventing a code fix.
 
 Before suggesting a ping, check who was contacted, when, what they answered and
@@ -215,12 +219,46 @@ review threads or maintainer replies near the claim they support. End with a
 short ordered list of what you did and what remains with whom, not generic
 "follow up / wait / fix CI" advice.
 
-## Act on author-side actions
+## Fix author-side blockers
 
-An explicit request to use this skill includes its author-side follow-ups,
-unless the user restricts the pass to read-only inspection. Otherwise obtain
-authorization before posting; merely reading this skill grants none. Recheck that the PR is still open
-before each follow-up; if it has merged or closed, stop work on that PR:
+An explicit request to use this skill includes fixing its author-side
+blockers, unless the user restricts the pass to read-only inspection.
+Otherwise obtain authorization before pushing or posting; merely reading this
+skill grants none. Recheck that the PR is still open before each fix or
+follow-up; if it has merged or closed, stop work on that PR.
+
+### Code fixes
+
+Fix these on the PR branch rather than listing them:
+
+- **Merge conflicts.** Integrate the base branch the way the project asks:
+  rebase where it asks for rebases or squash-ready single commits, a normal merge
+  where it forbids force-pushes or rewriting pushed history. Resolve each
+  conflict by keeping both the base branch's change and the PR's intent; read
+  the base commits that touched the conflicting lines first. Never resolve by
+  taking one side wholesale.
+- **Failing current-head checks** the PR caused, and failures from base drift
+  (renamed or removed symbols the PR uses).
+- **Unresolved review or bot findings** that are unambiguous. Ask the user
+  about ambiguous or conflicting feedback instead of guessing.
+
+Work in an existing checkout of the branch when one is clean and has no live
+owner; otherwise create a task checkout (a blobless clone of the base
+repository with the fork as a second remote, or a worktree of an existing
+clone). Run the project's own typecheck and tests for the touched area, and
+the full suite when it runs in reasonable time, before pushing. After a
+rebase, push with `--force-with-lease` pinned to the old head SHA; never force
+over commits you did not fetch. Confirm the new head is `MERGEABLE` and that
+its checks start. Then update the description's head SHA, evidence and test
+counts, and reply where the project expects it (the review thread, or a short
+comment naming the new head and what changed). Remove the task checkout when
+the PR's push is verified.
+
+If a fix cannot be verified locally (missing toolchain, credentials or test
+infrastructure), push nothing for that PR; report the exact gap and the
+command that failed.
+
+### Follow-ups
 
 - Re-request review from a reviewer whose requested changes are addressed. If
   the API refuses because you lack write access, post a reply that mentions them
@@ -240,10 +278,10 @@ agent-written replies, post nothing and hand the reply to the user. Mark a draft
 ready only when its agreement is signed, its description matches the template
 and no bot finding on the current head is unresolved.
 
-Keep every post short and factual; cite the head SHA and checks. Code changes,
-pushes, rebases and merges still go through the repository's normal delivery workflow; use installed delivery/CI-monitor
-skills when available. Do not dismiss reviews, label, rerun restricted jobs
-or bypass protection. Link each post in the final summary.
+Keep every post short and factual; cite the head SHA and checks. Follow the
+project's commit conventions (for example, no AI attribution where it forbids
+it). Do not dismiss reviews, label, rerun restricted jobs, merge or bypass
+protection. Link each push and post in the final summary.
 
 Finish after this pass. Do not create a persistent goal, recurring job,
-background polling loop, new checkout or status database.
+background polling loop or status database, and leave no task checkout behind.
