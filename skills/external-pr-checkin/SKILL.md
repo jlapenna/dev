@@ -1,6 +1,6 @@
 ---
 name: external-pr-checkin
-description: Check the authenticated user's open GitHub pull requests to external projects, summarize current CI, review and merge gates, compare each PR with its project's contribution model, fix every author-side blocker during the pass (merge conflicts, failing checks, unresolved review findings, stale descriptions), then report what remains with its owner. Use for requests such as "check my upstream PRs", "what is blocking my external PRs?", or "what can I do to move my contributions ahead?" A pass that only reports an author-side blocker it could have fixed is incomplete.
+description: Check the authenticated user's open GitHub pull requests to external projects, summarize current CI, review and merge gates, compare each PR with its project's contribution model, fix every author-side blocker during the pass (merge conflicts, failing checks, stale descriptions), address all reviewer, maintainer and bot feedback (change the code or answer it in its thread), then report what remains with its owner. Use for requests such as "check my upstream PRs", "what is blocking my external PRs?", or "what can I do to move my contributions ahead?" A pass that only reports an author-side blocker it could have fixed is incomplete.
 ---
 
 # External PR check-in
@@ -239,8 +239,7 @@ Fix these on the PR branch rather than listing them:
   taking one side wholesale.
 - **Failing current-head checks** the PR caused, and failures from base drift
   (renamed or removed symbols the PR uses).
-- **Unresolved review or bot findings** that are unambiguous. Ask the user
-  about ambiguous or conflicting feedback instead of guessing.
+- **Review feedback.** See "Address feedback" below.
 
 Work in an existing checkout of the branch when one is clean and has no live
 owner; otherwise create a task checkout (a blobless clone of the base
@@ -257,6 +256,50 @@ the PR's push is verified.
 If a fix cannot be verified locally (missing toolchain, credentials or test
 infrastructure), push nothing for that PR; report the exact gap and the
 command that failed.
+
+### Address feedback
+
+Every piece of feedback on the PR gets an answer during the pass: a change that
+addresses it, or a reply that explains why not. Feedback that is still
+unanswered at the end of the pass is an author-side blocker you left behind.
+
+1. **Collect it all.** Gather unresolved review threads (paginated GraphQL,
+   including outdated ones whose point may still apply), review summaries,
+   top-level comments from maintainers and reviewers, bot findings on the
+   current head, and requests made in the linked issue. Read each in full,
+   including edits after its creation. A comment the author already answered
+   is unanswered again if the reviewer replied after that answer.
+2. **Classify each item** against the current head: already addressed (name
+   the commit); actionable (a concrete requested change); a question; a
+   suggestion the author may decline; disputed (the change would be wrong,
+   with evidence); or out of scope (belongs in a follow-up).
+3. **Act on it.**
+   - *Actionable:* make the change as asked, in the form asked. A request to
+     rebase is not met by a merge, a request to split is not met by a comment.
+     Add or update a test that proves it when the change is behavioral.
+   - *Question:* answer it from the code and evidence, linking the exact line
+     or run.
+   - *Suggestion declined or disputed:* reply with the concrete reason and
+     evidence (a failing case, a project rule, a base-branch behavior). Do not
+     silently ignore it, and do not argue with a maintainer's decision about
+     their own project: when a maintainer insists, do it their way.
+   - *Out of scope:* say so, and open or link a follow-up issue when the
+     project accepts them.
+   - *Ambiguous or conflicting:* when two reasonable readings lead to
+     different code, or two reviewers ask for incompatible changes, ask one
+     short question in the thread (or hand it to the user where the project
+     forbids agent replies) and continue with the rest of the PR.
+4. **Verify and push** as in "Code fixes", one commit per logical response
+   where the project keeps history, so each reply can name its commit.
+5. **Close the loop.** Reply in each thread with the addressing commit and
+   one line on what changed. Resolve a thread only when its change is in the
+   pushed head and the project lets authors resolve threads; leave a thread
+   whose reviewer asked to resolve it themselves, or that you disputed, open.
+   Record maintainer requests and their status in the description when the
+   project uses it as the durable record. Then re-request review (below).
+
+Bot findings follow the same steps. Where a bot re-reviews only on request,
+request it once the fixes and description are current.
 
 ### Follow-ups
 
