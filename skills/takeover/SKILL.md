@@ -64,7 +64,11 @@ Where the harness supports it, make succession visible: retitle your session
 to the task using the harness's supported title controls. Transfer the old
 agent's name only after the ownership check above. Leave the old agent idle in place: do not prompt, resume or close
 it. Tell live peers who touch the same work that you now own it, through the
-channel they already use.
+channel they already use. If the predecessor published Outline documents
+(share-media), move each one to your session with
+`~/.agents/skills/share-media/scripts/outline_share.py --doc <url>` and no
+files. Otherwise Joe's comments reach the old terminal, or a reply saying
+nobody is listening.
 
 ## 4. Reconstruct intent
 
